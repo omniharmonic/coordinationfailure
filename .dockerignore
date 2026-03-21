@@ -1,0 +1,10 @@
+node_modules
+.git
+dist
+coverage
+*.log
+.env
+.env.*
+.DS_Store
+*.png
+*.jpg
