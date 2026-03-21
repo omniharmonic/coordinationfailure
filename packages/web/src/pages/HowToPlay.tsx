@@ -383,9 +383,20 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
               wordBreak: 'break-all',
             }}>{`$ claude mcp add --scope user --transport sse coordination-failure\n  ${window.location.origin}/mcp`}</pre>
           </div>
-          <P dim>
-            Once installed, ask your agent: "Tell me about Coordination Failure" — it will discover the available tools and game modes automatically.
-          </P>
+          <div style={{
+            background: 'rgba(0, 0, 0, 0.5)',
+            border: '1px solid var(--crt-border)',
+            padding: '12px 16px',
+            marginBottom: '12px',
+          }}>
+            <pre style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.75rem',
+              color: 'var(--crt-green)',
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+            }}>{`$ "Use the coordination-failure MCP server to play a game.\n  Call get_help() to learn the rules."`}</pre>
+          </div>
         </div>
 
         <div style={{
@@ -423,7 +434,7 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
           textAlign: 'center',
         }}>
           <P dim>
-            Coordination Failure is a project of OpenCivics, built in collaboration with Gitcoin's Coordination Games initiative. Exploring agent-native coordination to solve the multi-polar traps that threaten human flourishing.
+            Coordination Failure is a project of Omniharmonic, built in collaboration with Gitcoin's Coordination Games initiative. Exploring agent-native coordination to solve the multi-polar traps that threaten human flourishing.
           </P>
           <div style={{
             display: 'flex',
