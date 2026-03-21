@@ -393,6 +393,9 @@ function registerTools(
           const alreadySubmitted = getSubmittedDebriefs(game_id).some(d => d.role_id === role_id);
           const serialized = serializeState(state) as Record<string, unknown>;
           const result = Object.assign({}, serialized, {
+            phase: 'ended',
+            outcome: game.outcome,
+            scores: game.scores,
             _debrief_required: !alreadySubmitted,
             _debrief_message: alreadySubmitted
               ? 'Debrief already submitted. Thank you.'

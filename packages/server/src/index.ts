@@ -93,12 +93,18 @@ gameManager.onGameEnd(async (gameId, state, events) => {
         strategies[roleId] = classifyStrategy(roleId, log);
       }
       // Gather all messages for communication analysis
-      const allMessages = channelManager.getAllMessages(gameId).map(m => ({
-        from: m.from,
-        content: m.content,
-        channel_type: m.channel_type,
-        timestamp: m.timestamp,
-      }));
+      let allMessages: Array<{ from: string; content: string; channel_type?: string; timestamp?: number }> = [];
+      try {
+        allMessages = channelManager.getAllMessages(gameId).map(m => ({
+          from: m.from,
+          content: m.content,
+          channel_type: m.channel_type,
+          timestamp: m.timestamp,
+        }));
+        console.log(`[CF] Game ${gameId.slice(0, 8)}: ${allMessages.length} messages collected for report`);
+      } catch (msgErr) {
+        console.error(`[CF] Failed to collect messages for report:`, msgErr);
+      }
       const report = generatePostGameReport(gameId, log, summary, strategies, allMessages);
       gameReports.set(gameId, report);
       db.reports.save(gameId, report);
