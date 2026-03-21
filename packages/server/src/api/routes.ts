@@ -444,6 +444,56 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
       }
     });
 
+    // Agent-sourced insights extracted from submitted debriefs
+    app.get('/api/knowledge/agent-insights', async (_req, res) => {
+      try {
+        const { getSubmittedDebriefs } = await import('../mcp/mcp-sdk-server.js');
+        const { db: pdb5 } = await import('../persistence/index.js');
+
+        // Gather debriefs from all games (in-memory + persisted)
+        const insights: any[] = [];
+
+        // Check completed games for debriefs
+        const completedGames = await pdb5.completedGames.list().catch(() => []);
+        const gameIds = completedGames.map((g: any) => g.game_id);
+
+        for (const gameId of gameIds) {
+          // Try in-memory first
+          let debriefs = getSubmittedDebriefs(gameId);
+
+          // Fallback to database
+          if (debriefs.length === 0) {
+            try {
+              const persisted = await pdb5.debriefs.get(gameId + ':agent');
+              if (persisted && Array.isArray(persisted)) {
+                debriefs = persisted;
+              }
+            } catch (_e) { /* ignore */ }
+          }
+
+          for (const debrief of debriefs) {
+            if (debrief.source !== 'agent' || !debrief.key_insights) continue;
+            for (const insight of debrief.key_insights) {
+              insights.push({
+                id: `agent-${gameId.slice(0, 8)}-${debrief.role_id}-${insights.length}`,
+                title: insight.title,
+                description: insight.description,
+                source: 'agent',
+                role_id: debrief.role_id,
+                role_name: debrief.role_name,
+                game_id: gameId,
+                submitted_at: debrief.submitted_at,
+              });
+            }
+          }
+        }
+
+        res.json(insights);
+      } catch (_e) {
+        res.json([]);
+      }
+    });
+
     app.get('/api/knowledge/:id', (req, res) => {
       const pattern = knowledgeBase.getPatternById(req.params.id);
       if (!pattern) {
