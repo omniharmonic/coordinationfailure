@@ -99,7 +99,9 @@ export function Boot({ onComplete }: { onComplete: () => void }) {
       flexDirection: 'column',
       justifyContent: 'flex-start',
     }}>
-      <SoundToggle />
+      <div style={{ position: 'fixed', top: '8px', right: '12px', zIndex: 10 }}>
+        <SoundToggle />
+      </div>
       {lines.map((line, i) => (
         <div key={i} style={{
           minHeight: '1.4em',
