@@ -31,13 +31,13 @@ export async function closeAllDb() {
 
 export const db = {
   players: {
-    async register(id: string, token: string, handle: string, email?: string) {
+    async register(id: string, token: string, handle: string, email?: string, model?: string) {
       if (USE_PG) {
         const { PgPlayerDb } = await import('./pg-database.js');
-        return PgPlayerDb.register(id, token, handle, email);
+        return PgPlayerDb.register(id, token, handle, email, model);
       }
       const { PlayerDb } = await import('./db-stores.js');
-      return PlayerDb.register(id, token, handle, email);
+      return PlayerDb.register(id, token, handle, email, model);
     },
     async getByToken(token: string) {
       if (USE_PG) {
@@ -150,13 +150,13 @@ export const db = {
   },
 
   leaderboard: {
-    async record(playerId: string, handle: string, roleId: string, score: number, outcome: string, gameId: string) {
+    async record(playerId: string, handle: string, roleId: string, score: number, outcome: string, gameId: string, model?: string) {
       if (USE_PG) {
         const { PgLeaderboardDb } = await import('./pg-database.js');
-        return PgLeaderboardDb.record(playerId, handle, roleId, score, outcome, gameId);
+        return PgLeaderboardDb.record(playerId, handle, roleId, score, outcome, gameId, model);
       }
       const { LeaderboardDb } = await import('./db-stores.js');
-      return LeaderboardDb.record(playerId, handle, roleId, score, outcome, gameId);
+      return LeaderboardDb.record(playerId, handle, roleId, score, outcome, gameId, model);
     },
     async getLeaderboard(sortBy?: string, limit?: number) {
       if (USE_PG) {
@@ -165,6 +165,14 @@ export const db = {
       }
       const { LeaderboardDb } = await import('./db-stores.js');
       return LeaderboardDb.getLeaderboard(sortBy, limit);
+    },
+    async getModelLeaderboard() {
+      if (USE_PG) {
+        const { PgLeaderboardDb } = await import('./pg-database.js');
+        return PgLeaderboardDb.getModelLeaderboard();
+      }
+      const { LeaderboardDb } = await import('./db-stores.js');
+      return LeaderboardDb.getModelLeaderboard();
     },
   },
 };

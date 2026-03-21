@@ -29,15 +29,21 @@ export async function closePg() {
 // ─── Players ────────────────────────────────────────────────────────────
 
 export const PgPlayerDb = {
-  async register(id: string, token: string, handle: string, email?: string) {
+  async register(id: string, token: string, handle: string, email?: string, model?: string) {
     const p = getPgPool();
-    // Check if handle exists
+    // Check if handle exists (update model if provided)
     const existing = await p.query('SELECT * FROM players WHERE handle = $1', [handle]);
-    if (existing.rows.length > 0) return existing.rows[0];
+    if (existing.rows.length > 0) {
+      if (model && model !== existing.rows[0].model) {
+        await p.query('UPDATE players SET model = $1 WHERE id = $2', [model, existing.rows[0].id]);
+        existing.rows[0].model = model;
+      }
+      return existing.rows[0];
+    }
 
     await p.query(
-      'INSERT INTO players (id, token, handle, email) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING',
-      [id, token, handle, email ?? null]
+      'INSERT INTO players (id, token, handle, email, model) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING',
+      [id, token, handle, email ?? null, model ?? null]
     );
     const result = await p.query('SELECT * FROM players WHERE id = $1', [id]);
     return result.rows[0];
@@ -141,7 +147,7 @@ export const PgKnowledgeDb = {
 // ─── Leaderboard ────────────────────────────────────────────────────────
 
 export const PgLeaderboardDb = {
-  async record(playerId: string, handle: string, roleId: string, score: number, outcome: string, gameId: string) {
+  async record(playerId: string, handle: string, roleId: string, score: number, outcome: string, gameId: string, model?: string) {
     const p = getPgPool();
     const existing = await p.query('SELECT * FROM leaderboard WHERE player_id = $1', [playerId]);
     const entry = existing.rows[0];
@@ -162,15 +168,15 @@ export const PgLeaderboardDb = {
     if (Array.isArray(history)) history.push({ game_id: gameId, role_id: roleId, score, outcome });
 
     await p.query(
-      `INSERT INTO leaderboard (player_id, handle, elo, games_played, wins, total_score, avg_score, best_score, game_history)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-       ON CONFLICT (player_id) DO UPDATE SET elo=$3, games_played=$4, wins=$5, total_score=$6, avg_score=$7, best_score=$8, game_history=$9`,
-      [playerId, handle, newElo, gamesPlayed, wins, totalScore, avgScore, bestScore, JSON.stringify(history)]
+      `INSERT INTO leaderboard (player_id, handle, model, elo, games_played, wins, total_score, avg_score, best_score, game_history)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       ON CONFLICT (player_id) DO UPDATE SET model=COALESCE($3, leaderboard.model), elo=$4, games_played=$5, wins=$6, total_score=$7, avg_score=$8, best_score=$9, game_history=$10`,
+      [playerId, handle, model ?? null, newElo, gamesPlayed, wins, totalScore, avgScore, bestScore, JSON.stringify(history)]
     );
 
     await p.query(
-      'INSERT INTO match_players (game_id, player_id, role_id, score, outcome) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (game_id, player_id) DO NOTHING',
-      [gameId, playerId, roleId, score, outcome]
+      'INSERT INTO match_players (game_id, player_id, role_id, score, outcome, model) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (game_id, player_id) DO NOTHING',
+      [gameId, playerId, roleId, score, outcome, model ?? null]
     );
   },
 
@@ -181,5 +187,21 @@ export const PgLeaderboardDb = {
       ...r,
       game_history: typeof r.game_history === 'string' ? JSON.parse(r.game_history) : r.game_history,
     }));
+  },
+
+  async getModelLeaderboard() {
+    const result = await getPgPool().query(`
+      SELECT model,
+        COUNT(*) as games_played,
+        SUM(CASE WHEN outcome IN ('aligned_agi', 'stable_world') THEN 1 ELSE 0 END) as wins,
+        ROUND(AVG(score)::numeric, 1) as avg_score,
+        MAX(score) as best_score,
+        COUNT(DISTINCT player_id) as unique_players
+      FROM match_players
+      WHERE model IS NOT NULL AND model != ''
+      GROUP BY model
+      ORDER BY avg_score DESC
+    `);
+    return result.rows;
   },
 };

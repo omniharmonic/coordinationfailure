@@ -63,9 +63,10 @@ gameManager.onGameEnd(async (gameId, state, events) => {
     for (const session of sessions) {
       const player = await playerStore.getById(session.player_id);
       const handle = player?.handle ?? session.player_id;
+      const model = player?.model;
       const score = gameOverEvent.scores[session.role_id] ?? 0;
-      // Write to database
-      db.leaderboard.record(session.player_id, handle, session.role_id, score, gameOverEvent.outcome, gameId);
+      // Write to database (include model for per-game tracking)
+      db.leaderboard.record(session.player_id, handle, session.role_id, score, gameOverEvent.outcome, gameId, model);
       // Also write to in-memory store for backward compat
       leaderboardStore.recordGameResult(session.player_id, handle, session.role_id, score, gameOverEvent.outcome, gameId);
     }

@@ -6,6 +6,7 @@ export interface Player {
   token: string;
   handle: string;
   email?: string;
+  model?: string;
   elo: number;
   games_played: number;
   wins: number;
@@ -21,9 +22,13 @@ export class PlayerStore {
     if (count > 0) console.log(`[CF] ${count} players in database`);
   }
 
-  async register(handle?: string, email?: string): Promise<Player> {
+  async register(handle?: string, email?: string, model?: string): Promise<Player> {
     const finalHandle = handle ?? `player_${Math.random().toString(36).slice(2, 8)}`;
-    return db.players.register(uuid(), uuid(), finalHandle, email);
+    // Sanitize model name: alphanumeric, spaces, hyphens, dots, underscores, slashes, parens
+    const sanitizedModel = model
+      ? model.slice(0, 100).replace(/[^a-zA-Z0-9 \-._/()]/g, '').trim() || undefined
+      : undefined;
+    return db.players.register(uuid(), uuid(), finalHandle, email, sanitizedModel);
   }
 
   async getByToken(token: string): Promise<Player | undefined> {

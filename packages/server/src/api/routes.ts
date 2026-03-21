@@ -59,9 +59,9 @@ const reports = new Map<string, PostGameReport>();
 export function setupApiRoutes(app: Express, gameManager: GameManager, sessionManager: SessionManager, classicsManager?: ClassicsManager, leaderboardStore?: LeaderboardStore, knowledgeBase?: KnowledgeBase): void {
   // Player registration
   app.post('/api/register', async (req, res) => {
-    const { handle, email } = req.body ?? {};
-    const player = await playerStore.register(handle, email);
-    res.json({ player_id: player.id, player_token: player.token, handle: player.handle });
+    const { handle, email, model } = req.body ?? {};
+    const player = await playerStore.register(handle, email, model);
+    res.json({ player_id: player.id, player_token: player.token, handle: player.handle, model: player.model });
   });
 
   // List games
@@ -352,6 +352,16 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
         if (dbResults.length > 0) return res.json(dbResults);
       } catch (_e) { /* fallback to in-memory */ }
       res.json(leaderboardStore.getLeaderboard(sortBy as any, limit));
+    });
+
+    app.get('/api/leaderboard/models', async (_req, res) => {
+      try {
+        const { db: pdb4 } = await import('../persistence/index.js');
+        const modelStats = await pdb4.leaderboard.getModelLeaderboard();
+        return res.json(modelStats);
+      } catch (_e) {
+        return res.json([]);
+      }
     });
 
     app.get('/api/leaderboard/:playerId', (req, res) => {

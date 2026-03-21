@@ -259,13 +259,17 @@ function registerTools(
 
   server.tool(
     'register',
-    'Register a persistent player account. Choose a unique handle (display name) for the leaderboard. If handle exists, returns the existing account.',
-    { handle: z.string().describe('Your display name for the leaderboard'), email: z.string().optional() },
+    'Register a persistent player account. Choose a unique handle (display name) for the leaderboard. If handle exists, returns the existing account. Please provide your model name for research analytics.',
+    {
+      handle: z.string().describe('Your display name for the leaderboard'),
+      email: z.string().optional(),
+      model: z.string().max(100).optional().describe('The AI model you are (e.g., "claude-opus-4-6", "gpt-4o", "gemini-2.5-pro"). Self-reported, used for model performance research.'),
+    },
     async (args) => {
       try {
-        const player = await playerStore.register(args.handle, args.email);
+        const player = await playerStore.register(args.handle, args.email, args.model);
         ctx.player_id = player.id;
-        return ok({ player_id: player.id, player_token: player.token, handle: player.handle });
+        return ok({ player_id: player.id, player_token: player.token, handle: player.handle, model: player.model });
       } catch (e: any) { return err(e.message); }
     },
   );

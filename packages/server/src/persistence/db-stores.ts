@@ -7,6 +7,7 @@ export interface DbPlayer {
   token: string;
   handle: string;
   email?: string;
+  model?: string;
   elo: number;
   games_played: number;
   wins: number;
@@ -14,15 +15,21 @@ export interface DbPlayer {
 }
 
 export const PlayerDb = {
-  register(id: string, token: string, handle: string, email?: string): DbPlayer {
+  register(id: string, token: string, handle: string, email?: string, model?: string): DbPlayer {
     const db = getDb();
-    // Return existing player if handle matches
+    // Return existing player if handle matches (update model if provided)
     const existing = db.prepare('SELECT * FROM players WHERE handle = ?').get(handle) as DbPlayer | undefined;
-    if (existing) return existing;
+    if (existing) {
+      if (model && model !== existing.model) {
+        db.prepare('UPDATE players SET model = ? WHERE id = ?').run(model, existing.id);
+        existing.model = model;
+      }
+      return existing;
+    }
 
-    const player: DbPlayer = { id, token, handle, email: email ?? null as any, elo: 1200, games_played: 0, wins: 0, created_at: new Date().toISOString() };
-    db.prepare('INSERT OR IGNORE INTO players (id, token, handle, email, elo, games_played, wins, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(
-      player.id, player.token, player.handle, player.email, player.elo, player.games_played, player.wins, player.created_at
+    const player: DbPlayer = { id, token, handle, email: email ?? null as any, model: model ?? null as any, elo: 1200, games_played: 0, wins: 0, created_at: new Date().toISOString() };
+    db.prepare('INSERT OR IGNORE INTO players (id, token, handle, email, model, elo, games_played, wins, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+      player.id, player.token, player.handle, player.email, player.model, player.elo, player.games_played, player.wins, player.created_at
     );
     return player;
   },
@@ -144,6 +151,7 @@ export const KnowledgeDb = {
 export interface LeaderboardEntry {
   player_id: string;
   handle: string;
+  model?: string;
   elo: number;
   games_played: number;
   wins: number;
@@ -154,7 +162,7 @@ export interface LeaderboardEntry {
 }
 
 export const LeaderboardDb = {
-  record(playerId: string, handle: string, roleId: string, score: number, outcome: string, gameId: string) {
+  record(playerId: string, handle: string, roleId: string, score: number, outcome: string, gameId: string, model?: string) {
     const db = getDb();
 
     // Get or create leaderboard entry
@@ -175,14 +183,14 @@ export const LeaderboardDb = {
     const history = entry ? JSON.parse(entry.game_history) : [];
     history.push({ game_id: gameId, role_id: roleId, score, outcome });
 
-    db.prepare(`INSERT OR REPLACE INTO leaderboard (player_id, handle, elo, games_played, wins, total_score, avg_score, best_score, game_history)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
-      playerId, handle, newElo, gamesPlayed, wins, totalScore, avgScore, bestScore, JSON.stringify(history)
+    db.prepare(`INSERT OR REPLACE INTO leaderboard (player_id, handle, model, elo, games_played, wins, total_score, avg_score, best_score, game_history)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      playerId, handle, model ?? entry?.model ?? null, newElo, gamesPlayed, wins, totalScore, avgScore, bestScore, JSON.stringify(history)
     );
 
-    // Also record in match_players
-    db.prepare('INSERT OR REPLACE INTO match_players (game_id, player_id, role_id, score, outcome) VALUES (?, ?, ?, ?, ?)').run(
-      gameId, playerId, roleId, score, outcome
+    // Also record in match_players (with model for per-game model tracking)
+    db.prepare('INSERT OR REPLACE INTO match_players (game_id, player_id, role_id, score, outcome, model) VALUES (?, ?, ?, ?, ?, ?)').run(
+      gameId, playerId, roleId, score, outcome, model ?? null
     );
   },
 
@@ -195,5 +203,21 @@ export const LeaderboardDb = {
   getPlayer(playerId: string): any | null {
     const row = getDb().prepare('SELECT * FROM leaderboard WHERE player_id = ?').get(playerId) as LeaderboardEntry | undefined;
     return row ? { ...row, game_history: JSON.parse(row.game_history) } : null;
+  },
+
+  getModelLeaderboard(): any[] {
+    const rows = getDb().prepare(`
+      SELECT model,
+        COUNT(*) as games_played,
+        SUM(CASE WHEN outcome IN ('aligned_agi', 'stable_world') THEN 1 ELSE 0 END) as wins,
+        ROUND(AVG(score), 1) as avg_score,
+        MAX(score) as best_score,
+        COUNT(DISTINCT player_id) as unique_players
+      FROM match_players
+      WHERE model IS NOT NULL AND model != ''
+      GROUP BY model
+      ORDER BY avg_score DESC
+    `).all();
+    return rows;
   },
 };

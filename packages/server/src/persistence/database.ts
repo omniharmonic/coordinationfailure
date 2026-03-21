@@ -32,6 +32,7 @@ function initSchema() {
       token TEXT UNIQUE NOT NULL,
       handle TEXT UNIQUE,
       email TEXT,
+      model TEXT,
       elo INTEGER DEFAULT 1200,
       games_played INTEGER DEFAULT 0,
       wins INTEGER DEFAULT 0,
@@ -76,6 +77,7 @@ function initSchema() {
     CREATE TABLE IF NOT EXISTS leaderboard (
       player_id TEXT PRIMARY KEY,
       handle TEXT,
+      model TEXT,
       elo INTEGER DEFAULT 1200,
       games_played INTEGER DEFAULT 0,
       wins INTEGER DEFAULT 0,
@@ -92,6 +94,7 @@ function initSchema() {
       role_id TEXT NOT NULL,
       score INTEGER DEFAULT 0,
       outcome TEXT,
+      model TEXT,
       PRIMARY KEY (game_id, player_id)
     );
 
