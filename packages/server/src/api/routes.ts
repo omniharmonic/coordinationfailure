@@ -89,7 +89,7 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
     const lobby = gameManager.getLobby(req.params.gameId);
     if (lobby) {
       const allRoles = [...lobby.config.companies.map(c => c.id), ...lobby.config.governments.map(g => g.id)];
-      const claimedRoles = Array.from(lobby.players.values());
+      const claimedRoles = Array.from(lobby.players.keys()); // roles are the keys
       return res.json({
         phase: 'lobby',
         game_id: lobby.game_id,
@@ -140,7 +140,7 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
 
       // Determine which roles need bots
       const allRoles = [...lobby.config.companies.map(c => c.id), ...lobby.config.governments.map(g => g.id)];
-      const claimedRoles = new Set(lobby.players.values());
+      const claimedRoles = new Set(lobby.players.keys()); // roles are the keys
       const unclaimedRoles = allRoles.filter(r => !claimedRoles.has(r));
 
       const rolesToFill = fillAll

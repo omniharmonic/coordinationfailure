@@ -7,7 +7,7 @@ export interface GameLobby {
   game_id: string;
   config: GameConfig;
   host_player_id: string;
-  players: Map<string, string>; // playerId -> roleId
+  players: Map<string, string>; // roleId -> playerId (keyed by role to prevent double-claim)
   created_at: Date;
 }
 
@@ -106,7 +106,7 @@ export class GameManager {
     // Lobbies
     for (const [id, lobby] of this.lobbies) {
       const allRoles = [...lobby.config.companies.map(c => c.id), ...lobby.config.governments.map(g => g.id)];
-      const claimedRoles = new Set(lobby.players.values());
+      const claimedRoles = new Set(lobby.players.keys()); // roles are now the keys
       const available = allRoles.filter(r => !claimedRoles.has(r));
 
       list.push({
@@ -159,7 +159,7 @@ export class GameManager {
     }
 
     const session = this.sessionManager.createSession(playerId, gameId, roleId);
-    lobby.players.set(playerId, roleId);
+    lobby.players.set(roleId, playerId); // keyed by role to support same player claiming multiple roles
 
     return session.session_key;
   }

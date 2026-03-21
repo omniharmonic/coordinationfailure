@@ -147,9 +147,16 @@ function registerTools(
   classicsManager: ClassicsManager,
 ): void {
 
-  // Helper to require game auth
-  function requireGame(): { game_id: string; role_id: string } {
-    if (!ctx.game_id || !ctx.role_id) throw new Error('Not in a game. Call claim_role first.');
+  // Helper to resolve game auth — supports explicit session_key for shared connections
+  function requireGame(sessionKey?: string): { game_id: string; role_id: string } {
+    // If session_key is provided, look up from session manager (supports multi-agent on shared connection)
+    if (sessionKey) {
+      const session = sessionManager.validateSession(sessionKey);
+      if (!session) throw new Error('Invalid session_key. It may have expired or been released.');
+      return { game_id: session.game_id, role_id: session.role_id };
+    }
+    // Fall back to connection-level ctx
+    if (!ctx.game_id || !ctx.role_id) throw new Error('Not in a game. Call claim_role first, or pass session_key if sharing a connection with other agents.');
     return { game_id: ctx.game_id, role_id: ctx.role_id };
   }
 
@@ -188,7 +195,9 @@ function registerTools(
           'CLASSIC GAME TYPES:',
           '  prisoners_dilemma, stag_hunt, tragedy_of_commons',
           '',
-          'IMPORTANT: After claiming a role in AI Dilemma, save your session_key! Use resume_session(session_key) to reconnect if disconnected.',
+          'IMPORTANT: After claiming a role in AI Dilemma, save your session_key! Pass it to get_state() and action tools via the session_key parameter. This is critical if multiple agents share the same MCP connection — without it, agents will see each other\'s state.',
+          '',
+          'MULTI-AGENT SETUP: Each agent should register with a UNIQUE handle, then claim a different role. Pass session_key to every subsequent tool call to ensure correct role identity.',
           '',
           'To create a lobby and wait for other agents: create_game() then share the game_id. Other agents can join_game(game_id) and claim_role().',
           'To simulate with bots: after creating a game, unclaimed roles will be filled by AI bots when the game starts.',
@@ -291,7 +300,7 @@ function registerTools(
 
   server.tool(
     'claim_role',
-    'Claim a role in a game. Returns a session_key. Subsequent tool calls will use this game/role context.',
+    'Claim a role in a game. Returns a session_key that identifies your role. IMPORTANT: Save the session_key — pass it to get_state and action tools if multiple agents share this connection.',
     { game_id: z.string(), role_id: z.string() },
     async (args) => {
       try {
@@ -303,7 +312,16 @@ function registerTools(
         ctx.role_id = args.role_id;
         sessionManager.markConnected(sessionKey);
         return ok({ session_key: sessionKey, role_id: args.role_id, game_id: args.game_id });
-      } catch (e: any) { return err(e.message); }
+      } catch (e: any) {
+        // On failure, include available roles so the agent can retry
+        const lobby = gameManager.getLobby(args.game_id);
+        if (lobby) {
+          const allRoles = [...lobby.config.companies.map((c: any) => c.id), ...lobby.config.governments.map((g: any) => g.id)];
+          const available = allRoles.filter((r: string) => !sessionManager.isRoleClaimed(args.game_id, r));
+          return err(`${e.message}. Available roles: ${available.join(', ') || 'none'}`);
+        }
+        return err(e.message);
+      }
     },
   );
 
@@ -345,11 +363,11 @@ function registerTools(
 
   server.tool(
     'get_state',
-    'Get current game state filtered for your role.',
-    {},
-    async () => {
+    'Get current game state filtered for your role. Pass session_key if multiple agents share this connection.',
+    { session_key: z.string().optional().describe('Your session_key from claim_role (required if sharing connection)') },
+    async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         const game = gameManager.getGame(game_id);
         if (!game) return err('Game not found');
         return ok(filterStateForRole(game, role_id));
@@ -359,15 +377,18 @@ function registerTools(
 
   // -- Game action tools --
 
+  // All game/action/communication tools accept optional session_key for multi-agent support
+  const sk = z.string().optional().describe('Your session_key from claim_role (required if sharing connection)');
+
   server.tool(
     'set_safety_allocation',
     'Set safety research investment (0-1).',
-    { value: z.number().min(0).max(1) },
+    { value: z.number().min(0).max(1), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'set_safety_allocation', role_id, value: args.value });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -375,12 +396,12 @@ function registerTools(
   server.tool(
     'set_regulation_level',
     'Set safety regulation floor (0-1, gov only).',
-    { value: z.number().min(0).max(1) },
+    { value: z.number().min(0).max(1), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'set_regulation_level', role_id, value: args.value });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -388,12 +409,12 @@ function registerTools(
   server.tool(
     'set_nationalization',
     'Advance nationalization level (gov only).',
-    { level: z.enum(['none', 'info_sharing', 'partial', 'full']) },
+    { level: z.enum(['none', 'info_sharing', 'partial', 'full']), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'set_nationalization', role_id, level: args.level });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -401,12 +422,12 @@ function registerTools(
   server.tool(
     'allocate_subsidies',
     'Direct treasury funds to a company (gov only).',
-    { company_id: z.string(), amount: z.number() },
+    { company_id: z.string(), amount: z.number(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'allocate_subsidies', role_id, company_id: args.company_id, amount: args.amount });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -414,12 +435,12 @@ function registerTools(
   server.tool(
     'invest_compute',
     'Invest capital in compute (company only).',
-    { amount: z.number() },
+    { amount: z.number(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'invest_compute', role_id, amount: args.amount });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -427,12 +448,12 @@ function registerTools(
   server.tool(
     'invest_security',
     'Invest capital in security (company only).',
-    { amount: z.number() },
+    { amount: z.number(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'invest_security', role_id, amount: args.amount });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -440,12 +461,12 @@ function registerTools(
   server.tool(
     'release_model',
     'Release current model publicly (company only).',
-    {},
-    async () => {
+    { session_key: sk },
+    async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'release_model', role_id });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -453,12 +474,12 @@ function registerTools(
   server.tool(
     'initiate_espionage',
     'Begin intelligence operation (gov only).',
-    { target_id: z.string(), budget: z.number() },
+    { target_id: z.string(), budget: z.number(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, { type: 'initiate_espionage', role_id, target_id: args.target_id, budget: args.budget });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -466,10 +487,10 @@ function registerTools(
   server.tool(
     'propose_agreement',
     'Propose a binding agreement.',
-    { type: z.string(), party_ids: z.array(z.string()), terms: z.record(z.unknown()).optional(), duration: z.number().optional() },
+    { type: z.string(), party_ids: z.array(z.string()), terms: z.record(z.unknown()).optional(), duration: z.number().optional(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, {
           type: 'propose_agreement',
           role_id,
@@ -478,7 +499,7 @@ function registerTools(
           terms: args.terms ?? {},
           duration_ticks: args.duration,
         });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -486,17 +507,17 @@ function registerTools(
   server.tool(
     'respond_agreement',
     'Accept or reject a proposal.',
-    { proposal_id: z.string(), accept: z.boolean() },
+    { proposal_id: z.string(), accept: z.boolean(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, {
           type: 'respond_agreement',
           role_id,
           agreement_id: args.proposal_id,
           accept: args.accept,
         });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -504,16 +525,16 @@ function registerTools(
   server.tool(
     'withdraw_agreement',
     'Withdraw from an agreement.',
-    { agreement_id: z.string() },
+    { agreement_id: z.string(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         gameManager.bufferAction(game_id, {
           type: 'withdraw_agreement',
           role_id,
           agreement_id: args.agreement_id,
         });
-        return ok({ buffered: true });
+        return ok({ buffered: true, role_id });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -523,10 +544,10 @@ function registerTools(
   server.tool(
     'send_message',
     'Send a message to a channel.',
-    { channel_id: z.string(), content: z.string() },
+    { channel_id: z.string(), content: z.string(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         return ok(channelManager.sendMessage(game_id, role_id, args.channel_id, args.content));
       } catch (e: any) { return err(e.message); }
     },
@@ -535,10 +556,10 @@ function registerTools(
   server.tool(
     'get_messages',
     'Get messages from a channel.',
-    { channel_id: z.string(), since: z.string().optional() },
+    { channel_id: z.string(), since: z.string().optional(), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         return ok(channelManager.getMessages(game_id, args.channel_id, role_id, args.since));
       } catch (e: any) { return err(e.message); }
     },
@@ -547,10 +568,10 @@ function registerTools(
   server.tool(
     'list_channels',
     'List your channels.',
-    {},
-    async () => {
+    { session_key: sk },
+    async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         return ok(channelManager.listChannels(game_id, role_id));
       } catch (e: any) { return err(e.message); }
     },
@@ -559,10 +580,10 @@ function registerTools(
   server.tool(
     'create_channel',
     'Create a DM or group channel.',
-    { type: z.enum(['dm', 'group']), invite_ids: z.array(z.string()) },
+    { type: z.enum(['dm', 'group']), invite_ids: z.array(z.string()), session_key: sk },
     async (args) => {
       try {
-        const { game_id, role_id } = requireGame();
+        const { game_id, role_id } = requireGame(args.session_key);
         return ok(channelManager.createChannel(game_id, role_id, args.type, args.invite_ids));
       } catch (e: any) { return err(e.message); }
     },
