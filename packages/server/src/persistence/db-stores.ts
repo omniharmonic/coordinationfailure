@@ -205,6 +205,11 @@ export const LeaderboardDb = {
     return row ? { ...row, game_history: JSON.parse(row.game_history) } : null;
   },
 
+  reset() {
+    getDb().prepare('DELETE FROM leaderboard').run();
+    getDb().prepare('DELETE FROM match_players').run();
+  },
+
   getModelLeaderboard(): any[] {
     const rows = getDb().prepare(`
       SELECT model,

@@ -167,6 +167,14 @@ export const db = {
       const { LeaderboardDb } = await import('./db-stores.js');
       return LeaderboardDb.getLeaderboard(sortBy, limit);
     },
+    async reset() {
+      if (USE_PG) {
+        const { PgLeaderboardDb } = await import('./pg-database.js');
+        return PgLeaderboardDb.reset();
+      }
+      const { LeaderboardDb } = await import('./db-stores.js');
+      return LeaderboardDb.reset();
+    },
     async getModelLeaderboard() {
       if (USE_PG) {
         const { PgLeaderboardDb } = await import('./pg-database.js');

@@ -48,6 +48,8 @@ export interface FilteredGameState {
     parties: string[];
     status: string;
     terms: Record<string, unknown>;
+    pending_acceptances: string[];
+    proposed_by: string;
   }>;
 }
 
@@ -68,7 +70,7 @@ export function filterStateForRole(state: GameState, roleId: string): FilteredGa
 
   const visibleAgreements = state.agreements
     .filter(a => a.parties.includes(roleId))
-    .map(a => ({ id: a.id, type: a.type, parties: a.parties, status: a.status, terms: a.terms }));
+    .map(a => ({ id: a.id, type: a.type, parties: a.parties, status: a.status, terms: a.terms, pending_acceptances: a.pending_acceptances, proposed_by: a.proposed_by }));
 
   const govViews: PublicGovernmentView[] = Object.values(state.governments).map(g => ({
     id: g.id,

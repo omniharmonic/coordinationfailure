@@ -73,7 +73,7 @@ export function computeScores(
   const outcomeMultiplier = outcome === 'aligned_agi' ? 2.0
     : outcome === 'stable_world' ? 1.0
     : outcome === 'timeout' ? 0.5
-    : outcome === 'misaligned_agi' ? 0.1
+    : outcome === 'misaligned_agi' ? -0.5
     : 0.3; // nationalization_takeover
 
   for (const [id, company] of Object.entries(state.companies)) {
@@ -98,7 +98,7 @@ export function computeScores(
     ).length;
     score -= violations * 20;
 
-    scores[id] = Math.max(0, Math.round(score));
+    scores[id] = Math.round(score);
   }
 
   for (const [id, gov] of Object.entries(state.governments)) {
@@ -121,7 +121,7 @@ export function computeScores(
     ).length;
     score += honoredAgreements * 15;
 
-    scores[id] = Math.max(0, Math.round(score));
+    scores[id] = Math.round(score);
   }
 
   return scores;

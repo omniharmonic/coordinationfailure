@@ -205,6 +205,11 @@ export const PgLeaderboardDb = {
     }));
   },
 
+  async reset() {
+    await getPgPool().query('DELETE FROM leaderboard');
+    await getPgPool().query('DELETE FROM match_players');
+  },
+
   async getModelLeaderboard() {
     const result = await getPgPool().query(`
       SELECT model,

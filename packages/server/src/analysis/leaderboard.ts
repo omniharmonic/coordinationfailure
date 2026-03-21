@@ -85,6 +85,11 @@ export class LeaderboardStore {
     });
   }
 
+  reset(): void {
+    this.entries.clear();
+    this.gameHistory.clear();
+  }
+
   getLeaderboard(sortBy: 'elo' | 'score' | 'wins' = 'elo', limit: number = 20): LeaderboardEntry[] {
     const entries = Array.from(this.entries.values());
 

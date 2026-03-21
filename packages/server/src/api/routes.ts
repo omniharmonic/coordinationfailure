@@ -405,6 +405,17 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
       res.json(leaderboardStore.getLeaderboard(sortBy as any, limit));
     });
 
+    app.post('/api/leaderboard/reset', async (_req, res) => {
+      try {
+        const { db } = await import('../persistence/index.js');
+        await db.leaderboard.reset();
+        leaderboardStore.reset();
+        res.json({ success: true, message: 'Leaderboard reset' });
+      } catch (e: any) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
     app.get('/api/leaderboard/models', async (_req, res) => {
       try {
         const { db: pdb4 } = await import('../persistence/index.js');
