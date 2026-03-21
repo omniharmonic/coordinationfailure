@@ -355,6 +355,66 @@ async function handleToolCall(
       return classicsManager.sendMessage(chatGameId, auth.player_id, params.content);
     }
 
+    case 'submit_debrief': {
+      if (!params.session_key) throw new Error('Missing session_key');
+      if (!params.narrative) throw new Error('Missing narrative');
+      if (!params.key_insights) throw new Error('Missing key_insights');
+      if (!params.strategy_reflection) throw new Error('Missing strategy_reflection');
+
+      const session = sessionManager.validateSession(params.session_key);
+      if (!session) throw new Error('Invalid session_key');
+
+      const ROLE_NAMES: Record<string, string> = {
+        openbrain: 'OpenBrain', prometheus: 'Prometheus AI', nexus: 'Nexus Labs',
+        titan: 'Titan Computing', deepcent: 'DeepCent', qianneng: 'QianNeng AI',
+        us_gov: 'United States Government', china_gov: 'China Government',
+      };
+
+      const { getSubmittedDebriefs } = await import('./mcp-sdk-server.js');
+      // Use the same in-memory store as the SDK server
+      const { submittedDebriefs } = await import('./mcp-sdk-server.js') as any;
+
+      const debrief = {
+        role_id: session.role_id,
+        role_name: ROLE_NAMES[session.role_id] ?? session.role_id,
+        player_id: session.player_id,
+        submitted_at: new Date().toISOString(),
+        narrative: params.narrative,
+        key_insights: params.key_insights,
+        strategy_reflection: params.strategy_reflection,
+        coordination_analysis: params.coordination_analysis,
+        counterfactual: params.counterfactual,
+        source: 'agent' as const,
+      };
+
+      // Store via the shared map
+      const gameDebriefs = getSubmittedDebriefs(session.game_id);
+      const existingIdx = gameDebriefs.findIndex((d: any) => d.role_id === session.role_id);
+      if (existingIdx >= 0) {
+        gameDebriefs[existingIdx] = debrief;
+      } else {
+        gameDebriefs.push(debrief);
+      }
+      // Write back to the map (getSubmittedDebriefs returns the array ref, but let's be safe)
+      try {
+        const mod = await import('./mcp-sdk-server.js') as any;
+        if (!mod.submittedDebriefs) throw new Error('no map');
+        mod.submittedDebriefs.set(session.game_id, gameDebriefs);
+      } catch (_e) { /* best effort */ }
+
+      // Persist
+      try {
+        const { db: pdb } = await import('../persistence/index.js');
+        pdb.debriefs.save(session.game_id + ':agent', gameDebriefs);
+      } catch (_e) { /* best effort */ }
+
+      return {
+        submitted: true,
+        role_id: session.role_id,
+        insight_count: params.key_insights.length,
+      };
+    }
+
     default:
       throw new Error(`Unknown tool: ${tool}`);
   }

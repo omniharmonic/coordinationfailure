@@ -12,10 +12,13 @@ import { serializeState } from '../util/serialize.js';
 import type { AgentSubmittedDebrief, AgentInsight } from '../analysis/agent-debrief.js';
 
 // In-memory store for agent-submitted debriefs (also persisted to database)
-const submittedDebriefs = new Map<string, AgentSubmittedDebrief[]>(); // gameId -> debriefs
+export const submittedDebriefs = new Map<string, AgentSubmittedDebrief[]>(); // gameId -> debriefs
 
 export function getSubmittedDebriefs(gameId: string): AgentSubmittedDebrief[] {
-  return submittedDebriefs.get(gameId) ?? [];
+  if (!submittedDebriefs.has(gameId)) {
+    submittedDebriefs.set(gameId, []);
+  }
+  return submittedDebriefs.get(gameId)!;
 }
 
 interface AuthContext {
