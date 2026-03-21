@@ -1,5 +1,37 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }, [text]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      style={{
+        position: 'absolute',
+        top: '8px',
+        right: '8px',
+        background: 'transparent',
+        color: copied ? 'var(--crt-green)' : 'var(--crt-text-dim)',
+        border: `1px solid ${copied ? 'var(--crt-green)' : 'var(--crt-border)'}`,
+        padding: '2px 8px',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '0.65rem',
+        cursor: 'pointer',
+        letterSpacing: '1px',
+      }}
+    >
+      {copied ? 'COPIED' : 'COPY'}
+    </button>
+  );
+}
+
 interface ClassicGameListItem {
   game_id: string;
   type: string;
@@ -498,25 +530,78 @@ export function ClassicsLobby({ onSpectate, onBack }: {
         </div>
 
         {/* MCP Connection Info */}
-        <div className="panel" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '0.8rem', letterSpacing: '2px', marginBottom: '10px', color: 'var(--crt-amber)' }}>
-            MCP AGENT CONNECTION INFO
+        <div className="panel" style={{ padding: '20px' }}>
+          <div style={{ fontSize: '0.85rem', letterSpacing: '3px', marginBottom: '16px', color: 'var(--crt-amber)' }}>
+            HOW TO CONNECT AI AGENTS
           </div>
-          <pre style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: '0.8rem',
-            lineHeight: '1.8',
-            color: 'var(--crt-text)',
-            margin: 0,
-            whiteSpace: 'pre-wrap',
-          }}>
-{`MCP ENDPOINT: ${window.location.origin}/mcp
-GAME ID: ${waitingGameId}
-GAME TYPE: ${waitingGameType}
 
-To join from an MCP agent:
-  join_classic(game_type: "${waitingGameType}", game_id: "${waitingGameId}")`}
-          </pre>
+          {/* Step 1 */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-amber)', marginBottom: '6px' }}>
+              STEP 1: INSTALL MCP SERVER
+            </div>
+            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-border)', padding: '10px 12px', paddingRight: '60px' }}>
+              <pre style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.8rem',
+                color: 'var(--crt-text)',
+                margin: 0,
+                whiteSpace: 'pre-wrap',
+              }}>{`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`}</pre>
+              <CopyButton text={`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`} />
+            </div>
+          </div>
+
+          {/* Step 2 — Agent Prompt */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-amber)', marginBottom: '6px' }}>
+              STEP 2: GIVE YOUR AGENT THIS PROMPT
+            </div>
+            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-green)', padding: '10px 12px', paddingRight: '60px' }}>
+              <pre style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.8rem',
+                color: 'var(--crt-green)',
+                margin: 0,
+                whiteSpace: 'pre-wrap',
+                lineHeight: '1.6',
+              }}>{`Use the coordination-failure MCP server. Join classic game ${waitingGameId} (type: ${waitingGameType}).`}</pre>
+              <CopyButton text={`Use the coordination-failure MCP server. Join classic game ${waitingGameId} (type: ${waitingGameType}).`} />
+            </div>
+          </div>
+
+          {/* Game ID display */}
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-text-dim)', marginBottom: '6px' }}>
+              GAME ID
+            </div>
+            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-border)', padding: '10px 12px', paddingRight: '60px' }}>
+              <code style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.9rem',
+                color: 'var(--crt-green)',
+                letterSpacing: '1px',
+              }}>{waitingGameId}</code>
+              <CopyButton text={waitingGameId} />
+            </div>
+          </div>
+
+          {/* Game Type */}
+          <div>
+            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-text-dim)', marginBottom: '6px' }}>
+              GAME TYPE
+            </div>
+            <div style={{
+              padding: '4px 10px',
+              fontSize: '0.8rem',
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '1px',
+              color: 'var(--crt-amber)',
+              display: 'inline-block',
+            }}>
+              {waitingGameType?.replace(/_/g, ' ').toUpperCase()}
+            </div>
+          </div>
         </div>
       </div>
     );
