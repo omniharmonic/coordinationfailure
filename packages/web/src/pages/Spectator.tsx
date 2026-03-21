@@ -6,6 +6,7 @@ import { StabilityMeter } from '../components/StabilityMeter.js';
 import { ChatPanel } from '../components/ChatPanel.js';
 import { CapitalDisplay } from '../components/CapitalDisplay.js';
 import { AgreementsPanel } from '../components/AgreementsPanel.js';
+import { SurveillancePanel } from '../components/SurveillancePanel.js';
 import { useSound } from '../hooks/useSound.js';
 import { SoundToggle } from '../components/SoundToggle.js';
 
@@ -326,6 +327,9 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
           />
         </div>
       </div>
+
+      {/* Surveillance panel — floating overlay for backroom intel */}
+      <SurveillancePanel gameId={gameId} gameState={state} />
 
       {/* Game over overlay */}
       {(gameOver || state.outcome) && (
