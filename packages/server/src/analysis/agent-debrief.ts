@@ -13,6 +13,26 @@ export interface AgentDebrief {
   rank: number;
 }
 
+/** Rich agent-submitted debrief — replaces auto-generated when available */
+export interface AgentSubmittedDebrief {
+  role_id: string;
+  role_name: string;
+  player_id: string;
+  submitted_at: string;
+  // Rich content from the agent's own analysis
+  narrative: string;              // Free-form game narrative and analysis
+  key_insights: AgentInsight[];   // Titled insights with explanations
+  strategy_reflection: string;    // Agent's reflection on its own strategy
+  coordination_analysis?: string; // Analysis of coordination dynamics
+  counterfactual?: string;        // What they would do differently
+  source: 'agent';                // Distinguishes from auto-generated
+}
+
+export interface AgentInsight {
+  title: string;       // e.g., "Capital is king — but talent wins long-term"
+  description: string; // The full explanation
+}
+
 const ROLE_NAMES: Record<string, string> = {
   openbrain: 'OpenBrain',
   prometheus: 'Prometheus AI',

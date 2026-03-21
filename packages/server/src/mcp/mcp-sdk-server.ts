@@ -9,6 +9,14 @@ import type { ClassicsManager } from '../game/classics-manager.js';
 import type { ChannelManager } from '../comms/channels.js';
 import { playerStore } from '../api/routes.js';
 import { serializeState } from '../util/serialize.js';
+import type { AgentSubmittedDebrief, AgentInsight } from '../analysis/agent-debrief.js';
+
+// In-memory store for agent-submitted debriefs (also persisted to database)
+const submittedDebriefs = new Map<string, AgentSubmittedDebrief[]>(); // gameId -> debriefs
+
+export function getSubmittedDebriefs(gameId: string): AgentSubmittedDebrief[] {
+  return submittedDebriefs.get(gameId) ?? [];
+}
 
 interface AuthContext {
   player_id: string;
@@ -201,6 +209,8 @@ function registerTools(
           '',
           'To create a lobby and wait for other agents: create_game() then share the game_id. Other agents can join_game(game_id) and claim_role().',
           'To simulate with bots: after creating a game, unclaimed roles will be filled by AI bots when the game starts.',
+          '',
+          'AFTER THE GAME: You MUST call submit_debrief(session_key, narrative, key_insights, strategy_reflection) to publish your analysis. This is a mandatory part of gameplay — your insights are published on the game report.',
         ].join('\n'),
         ai_dilemma: [
           'THE AI DILEMMA — Detailed Guide',
@@ -370,7 +380,20 @@ function registerTools(
         const { game_id, role_id } = requireGame(args.session_key);
         const game = gameManager.getGame(game_id);
         if (!game) return err('Game not found');
-        return ok(filterStateForRole(game, role_id));
+        const state = filterStateForRole(game, role_id);
+        // If game ended, prompt agent to submit debrief
+        if (game.phase === 'ended') {
+          const alreadySubmitted = getSubmittedDebriefs(game_id).some(d => d.role_id === role_id);
+          const serialized = serializeState(state) as Record<string, unknown>;
+          const result = Object.assign({}, serialized, {
+            _debrief_required: !alreadySubmitted,
+            _debrief_message: alreadySubmitted
+              ? 'Debrief already submitted. Thank you.'
+              : 'GAME OVER. You MUST now call submit_debrief with your session_key, narrative, key_insights, and strategy_reflection. Analyze the game deeply — your debrief is published on the game report for researchers and other players.',
+          });
+          return ok(result);
+        }
+        return ok(state);
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -648,6 +671,80 @@ function registerTools(
         if (!classicsManager) return err('Classics not enabled');
         if (ctx.player_id === 'anonymous') return err('Unauthorized.');
         return ok(classicsManager.submitChoice(args.game_id, ctx.player_id, args.choice));
+      } catch (e: any) { return err(e.message); }
+    },
+  );
+
+  // -- Post-game debrief tool --
+
+  server.tool(
+    'submit_debrief',
+    'REQUIRED after a game ends. Submit your analysis and insights from the game. This is a mandatory part of gameplay — your debrief is published on the game report for other players and researchers to learn from. Write rich, thoughtful analysis.',
+    {
+      session_key: z.string().describe('Your session_key from claim_role'),
+      narrative: z.string().describe('Your full game narrative and analysis. Be detailed — describe what happened, key turning points, the dynamics between players, and the outcome. This is the main body of your debrief.'),
+      key_insights: z.array(z.object({
+        title: z.string().describe('Short insight title, e.g., "Capital is king but talent wins long-term"'),
+        description: z.string().describe('Full explanation of this insight'),
+      })).describe('3-6 key insights or lessons from the game'),
+      strategy_reflection: z.string().describe('Reflection on your own strategy — what you did, why, and how it played out'),
+      coordination_analysis: z.string().optional().describe('Analysis of coordination dynamics — agreements, trust, betrayal, information asymmetry'),
+      counterfactual: z.string().optional().describe('What you would do differently if you played again'),
+    },
+    async (args) => {
+      try {
+        // Resolve identity from session_key
+        const session = sessionManager.validateSession(args.session_key);
+        if (!session) return err('Invalid session_key.');
+
+        const game = gameManager.getGame(session.game_id);
+        if (game && game.phase !== 'ended') {
+          return err('Game is still running. Submit your debrief after the game ends.');
+        }
+
+        const ROLE_NAMES: Record<string, string> = {
+          openbrain: 'OpenBrain', prometheus: 'Prometheus AI', nexus: 'Nexus Labs',
+          titan: 'Titan Computing', deepcent: 'DeepCent', qianneng: 'QianNeng AI',
+          us_gov: 'United States Government', china_gov: 'China Government',
+        };
+
+        const debrief: AgentSubmittedDebrief = {
+          role_id: session.role_id,
+          role_name: ROLE_NAMES[session.role_id] ?? session.role_id,
+          player_id: session.player_id,
+          submitted_at: new Date().toISOString(),
+          narrative: args.narrative,
+          key_insights: args.key_insights as AgentInsight[],
+          strategy_reflection: args.strategy_reflection,
+          coordination_analysis: args.coordination_analysis,
+          counterfactual: args.counterfactual,
+          source: 'agent',
+        };
+
+        // Store in memory
+        const gameDebriefs = submittedDebriefs.get(session.game_id) ?? [];
+        // Replace if this role already submitted
+        const existingIdx = gameDebriefs.findIndex(d => d.role_id === session.role_id);
+        if (existingIdx >= 0) {
+          gameDebriefs[existingIdx] = debrief;
+        } else {
+          gameDebriefs.push(debrief);
+        }
+        submittedDebriefs.set(session.game_id, gameDebriefs);
+
+        // Persist to database
+        try {
+          const { db } = await import('../persistence/index.js');
+          // Save agent debriefs alongside auto-generated ones
+          db.debriefs.save(session.game_id + ':agent', gameDebriefs);
+        } catch (_e) { /* persist best-effort */ }
+
+        return ok({
+          submitted: true,
+          role_id: session.role_id,
+          insight_count: args.key_insights.length,
+          message: 'Debrief published. Thank you for contributing your analysis.',
+        });
       } catch (e: any) { return err(e.message); }
     },
   );

@@ -290,22 +290,49 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
   app.get('/api/games/:gameId/debriefs', async (req, res) => {
     const gameId = req.params.gameId;
     try {
+      // Check for agent-submitted debriefs first (preferred)
+      const { getSubmittedDebriefs } = await import('../mcp/mcp-sdk-server.js');
+      const agentDebriefs = getSubmittedDebriefs(gameId);
+
+      // Also get auto-generated debriefs as fallback
       const idx = await import('../index.js');
-      let debriefs = (idx as any).gameDebriefs?.get(gameId);
-      // Fallback: read from database
-      if (!debriefs) {
+      let autoDebriefs = (idx as any).gameDebriefs?.get(gameId);
+      if (!autoDebriefs) {
         const { db: pdb2 } = await import('../persistence/index.js');
-        debriefs = await pdb2.debriefs.get(gameId);
+        autoDebriefs = await pdb2.debriefs.get(gameId);
       }
-      if (!debriefs) {
+
+      // Also check database for persisted agent debriefs
+      if (agentDebriefs.length === 0) {
+        try {
+          const { db: pdb3 } = await import('../persistence/index.js');
+          const persisted = await pdb3.debriefs.get(gameId + ':agent');
+          if (persisted && Array.isArray(persisted) && persisted.length > 0) {
+            // Return persisted agent debriefs combined with auto-generated
+            return res.json({
+              agent_debriefs: persisted,
+              auto_debriefs: autoDebriefs ?? [],
+            });
+          }
+        } catch (_e) { /* ignore */ }
+      }
+
+      if (agentDebriefs.length === 0 && !autoDebriefs) {
+        const diskDebriefs = loadDebriefsFromDisk(gameId);
+        if (diskDebriefs) {
+          return res.json({ agent_debriefs: [], auto_debriefs: diskDebriefs });
+        }
         return res.status(404).json({ error: 'Debriefs not found. Game may not have ended yet.' });
       }
-      res.json(debriefs);
+
+      res.json({
+        agent_debriefs: agentDebriefs,
+        auto_debriefs: autoDebriefs ?? [],
+      });
     } catch (_e) {
-      // Last resort: try disk even if import failed
       const debriefs = loadDebriefsFromDisk(gameId);
       if (debriefs) {
-        return res.json(debriefs);
+        return res.json({ agent_debriefs: [], auto_debriefs: debriefs });
       }
       return res.status(404).json({ error: 'Debriefs not found.' });
     }

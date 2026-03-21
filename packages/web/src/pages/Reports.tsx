@@ -53,10 +53,34 @@ interface GameReport {
 interface AgentDebrief {
   agent_id?: string;
   role: string;
+  role_name?: string;
+  role_id?: string;
   role_type?: 'company' | 'government' | string;
   strategy?: string;
+  strategy_used?: string;
   key_decisions?: string[];
   lessons_learned?: string[];
+  lesson_learned?: string;
+  what_worked?: string;
+  what_failed?: string;
+}
+
+interface AgentSubmittedDebrief {
+  role_id: string;
+  role_name: string;
+  player_id: string;
+  submitted_at: string;
+  narrative: string;
+  key_insights: { title: string; description: string }[];
+  strategy_reflection: string;
+  coordination_analysis?: string;
+  counterfactual?: string;
+  source: 'agent';
+}
+
+interface DebriefResponse {
+  agent_debriefs?: AgentSubmittedDebrief[];
+  auto_debriefs?: AgentDebrief[];
 }
 
 interface Pattern {
@@ -171,7 +195,7 @@ function GameReportsTab() {
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reports, setReports] = useState<Record<string, GameReport>>({});
-  const [debriefs, setDebriefs] = useState<Record<string, AgentDebrief[]>>({});
+  const [debriefs, setDebriefs] = useState<Record<string, DebriefResponse>>({});
 
   useEffect(() => {
     async function fetchGames() {
@@ -357,9 +381,13 @@ function ExpandedReport({
   debriefs,
 }: {
   report?: GameReport;
-  debriefs?: AgentDebrief[];
+  debriefs?: DebriefResponse | AgentDebrief[];
 }) {
-  if (!report && !debriefs) {
+  // Normalize debrief data — handle both old array format and new response format
+  const agentDebriefs: AgentSubmittedDebrief[] = debriefs && !Array.isArray(debriefs) ? (debriefs.agent_debriefs ?? []) : [];
+  const autoDebriefs: AgentDebrief[] = debriefs && !Array.isArray(debriefs) ? (debriefs.auto_debriefs ?? []) : (Array.isArray(debriefs) ? debriefs : []);
+
+  if (!report && agentDebriefs.length === 0 && autoDebriefs.length === 0) {
     return (
       <div style={{ color: 'var(--crt-text-dim)', padding: '16px', fontSize: '0.85rem' }}>
         LOADING REPORT DATA...
@@ -493,18 +521,126 @@ function ExpandedReport({
       )}
 
       {/* Agent Debriefs */}
-      {debriefs && debriefs.length > 0 && (
+      {/* Agent-submitted debriefs (rich) */}
+      {agentDebriefs.length > 0 && (
+        <div style={panelStyle}>
+          <div style={{ color: 'var(--crt-amber)', fontSize: '0.8rem', letterSpacing: '2px', marginBottom: '16px' }}>
+            AGENT DEBRIEFS
+          </div>
+          {agentDebriefs.map((d, i) => {
+            const isGov = d.role_id === 'us_gov' || d.role_id === 'china_gov';
+            const borderColor = isGov ? 'var(--crt-amber)' : 'var(--crt-green)';
+
+            return (
+              <div key={i} style={{
+                border: `1px solid ${borderColor}`,
+                padding: '20px',
+                marginBottom: '16px',
+                background: 'rgba(0, 0, 0, 0.2)',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  marginBottom: '16px',
+                  borderBottom: `1px solid ${borderColor}`,
+                  paddingBottom: '8px',
+                }}>
+                  <span style={{ color: borderColor, fontSize: '0.9rem', letterSpacing: '2px' }}>
+                    {d.role_name.toUpperCase()}
+                  </span>
+                  <span style={{ color: 'var(--crt-text-dim)', fontSize: '0.7rem' }}>
+                    {new Date(d.submitted_at).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Narrative */}
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{
+                    color: 'var(--crt-green)',
+                    fontSize: '0.85rem',
+                    lineHeight: '1.6',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {d.narrative}
+                  </div>
+                </div>
+
+                {/* Key Insights */}
+                {d.key_insights && d.key_insights.length > 0 && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <div style={{ color: 'var(--crt-amber)', fontSize: '0.8rem', letterSpacing: '2px', marginBottom: '12px' }}>
+                      KEY INSIGHTS
+                    </div>
+                    {d.key_insights.map((insight, j) => (
+                      <div key={j} style={{
+                        borderLeft: '2px solid var(--crt-amber)',
+                        paddingLeft: '12px',
+                        marginBottom: '12px',
+                      }}>
+                        <div style={{ color: 'var(--crt-amber)', fontSize: '0.8rem', marginBottom: '4px', fontWeight: 'bold' }}>
+                          {j + 1}. {insight.title}
+                        </div>
+                        <div style={{ color: 'var(--crt-green)', fontSize: '0.8rem', lineHeight: '1.5' }}>
+                          {insight.description}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Strategy Reflection */}
+                <div style={{ marginBottom: d.coordination_analysis || d.counterfactual ? '20px' : '0' }}>
+                  <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '4px' }}>
+                    STRATEGY REFLECTION
+                  </div>
+                  <div style={{ color: 'var(--crt-green)', fontSize: '0.8rem', lineHeight: '1.5' }}>
+                    {d.strategy_reflection}
+                  </div>
+                </div>
+
+                {/* Coordination Analysis */}
+                {d.coordination_analysis && (
+                  <div style={{ marginBottom: d.counterfactual ? '20px' : '0' }}>
+                    <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '4px' }}>
+                      COORDINATION ANALYSIS
+                    </div>
+                    <div style={{ color: 'var(--crt-green)', fontSize: '0.8rem', lineHeight: '1.5' }}>
+                      {d.coordination_analysis}
+                    </div>
+                  </div>
+                )}
+
+                {/* Counterfactual */}
+                {d.counterfactual && (
+                  <div>
+                    <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '4px' }}>
+                      WHAT I WOULD DO DIFFERENTLY
+                    </div>
+                    <div style={{ color: 'var(--crt-green)', fontSize: '0.8rem', lineHeight: '1.5', fontStyle: 'italic' }}>
+                      {d.counterfactual}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Auto-generated debriefs (fallback for NPCs/bots) */}
+      {autoDebriefs.length > 0 && agentDebriefs.length === 0 && (
         <div style={panelStyle}>
           <div style={{ color: 'var(--crt-amber)', fontSize: '0.8rem', letterSpacing: '2px', marginBottom: '12px' }}>
-            AGENT DEBRIEFS
+            AGENT DEBRIEFS (AUTO-GENERATED)
           </div>
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
             gap: '12px',
           }}>
-            {debriefs.map((d, i) => {
-              const isCompany = d.role_type === 'company' || (!d.role_type && d.role?.toLowerCase().includes('corp'));
+            {autoDebriefs.map((d, i) => {
+              const isCompany = d.role_type === 'company' || (!d.role_type && !d.role?.toLowerCase().includes('gov'));
               const borderColor = isCompany ? 'var(--crt-green)' : 'var(--crt-amber)';
 
               return (
@@ -524,10 +660,10 @@ function ExpandedReport({
                     {(d.role ?? d.role_name ?? d.role_id ?? 'AGENT').toUpperCase()}
                   </div>
 
-                  {d.strategy && (
+                  {(d.strategy ?? d.strategy_used) && (
                     <div style={{ marginBottom: '8px' }}>
                       <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.7rem', marginBottom: '2px' }}>STRATEGY</div>
-                      <div style={{ color: 'var(--crt-green)', fontSize: '0.8rem' }}>{d.strategy}</div>
+                      <div style={{ color: 'var(--crt-green)', fontSize: '0.8rem' }}>{d.strategy ?? d.strategy_used}</div>
                     </div>
                   )}
 
@@ -542,10 +678,10 @@ function ExpandedReport({
                     </div>
                   )}
 
-                  {d.lessons_learned && d.lessons_learned.length > 0 && (
+                  {(d.lessons_learned ?? (d.lesson_learned ? [d.lesson_learned] : null)) && (
                     <div>
                       <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.7rem', marginBottom: '2px' }}>LESSONS LEARNED</div>
-                      {d.lessons_learned.map((ll, j) => (
+                      {(d.lessons_learned ?? [d.lesson_learned!]).map((ll, j) => (
                         <div key={j} style={{ color: 'var(--crt-green)', fontSize: '0.75rem', paddingLeft: '8px' }}>
                           &bull; {ll}
                         </div>
@@ -560,7 +696,7 @@ function ExpandedReport({
       )}
 
       {/* No data fallback */}
-      {!report && (!debriefs || debriefs.length === 0) && (
+      {!report && agentDebriefs.length === 0 && autoDebriefs.length === 0 && (
         <div style={{ color: 'var(--crt-text-dim)', padding: '16px', fontSize: '0.85rem', textAlign: 'center' }}>
           NO REPORT DATA AVAILABLE FOR THIS GAME
         </div>
