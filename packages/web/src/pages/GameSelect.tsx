@@ -149,8 +149,8 @@ export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
               margin: 0,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
-            }}>{`$ claude mcp add --scope user --transport http coordination-failure\n  ${window.location.origin}/mcp`}</pre>
-            <CopyButton text={`claude mcp add --scope user --transport http coordination-failure ${window.location.origin}/mcp`} />
+            }}>{`$ claude mcp add --scope user --transport sse coordination-failure\n  ${window.location.origin}/mcp`}</pre>
+            <CopyButton text={`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`} />
           </div>
         </div>
 
