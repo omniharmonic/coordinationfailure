@@ -3,8 +3,6 @@ import { useSound } from '../hooks/useSound.js';
 import { SoundToggle } from '../components/SoundToggle.js';
 
 const BOOT_LINES = [
-  'WOPR DEFENSE SYSTEM v4.2.1',
-  '',
   '========================================',
   '',
   '  COORDINATION FAILURE',
@@ -42,7 +40,7 @@ export function Boot({ onComplete }: { onComplete: () => void }) {
 
     if (charIdx >= currentLine.length) {
       // Line just completed — check for special lines
-      if (currentLine === 'WOPR DEFENSE SYSTEM v4.2.1' && !modemPlayedRef.current) {
+      if (currentLine.startsWith('========') && !modemPlayedRef.current) {
         modemPlayedRef.current = true;
         playModem();
       }

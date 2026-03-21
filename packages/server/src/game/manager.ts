@@ -28,9 +28,9 @@ export class GameManager {
   /** Remove lobbies older than 10 minutes that haven't started */
   private cleanStaleLobbles(): void {
     const now = Date.now();
-    const TEN_MINUTES = 10 * 60 * 1000;
+    const FIVE_MINUTES = 5 * 60 * 1000;
     for (const [id, lobby] of this.lobbies) {
-      if (now - lobby.created_at.getTime() > TEN_MINUTES) {
+      if (now - lobby.created_at.getTime() > FIVE_MINUTES) {
         console.log(`[CF] Cleaning stale lobby ${id.slice(0, 8)} (${lobby.players.size} players, age ${Math.round((now - lobby.created_at.getTime()) / 60000)}min)`);
         // Release any claimed sessions
         const sessions = this.sessionManager.getSessionsForGame(id);
@@ -56,6 +56,13 @@ export class GameManager {
   }
 
   createGame(playerId: string, configOverrides?: Partial<GameConfig>): { game_id: string; config: GameConfig } {
+    // Clean up any existing empty lobbies from this player
+    for (const [id, lobby] of this.lobbies) {
+      if (lobby.host_player_id === playerId && lobby.players.size === 0) {
+        this.lobbies.delete(id);
+      }
+    }
+
     const gameId = uuid();
     const config = createDefaultConfig(configOverrides);
 
