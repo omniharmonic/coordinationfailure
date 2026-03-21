@@ -8,10 +8,8 @@ interface SurveillanceMessage {
   timestamp: number;
   channel_name?: string;
   participants?: string[];
-  // Espionage-specific
   target?: string;
   status?: string;
-  // Agreement-specific
   agreement_type?: string;
   parties?: string[];
 }
@@ -38,6 +36,18 @@ const TYPE_BADGES: Record<string, { label: string; color: string }> = {
   agreement: { label: 'DIPLO', color: '#ffaa00' },
 };
 
+// Extract readable participants from channel name like "DM: titan, openbrain"
+function formatChannelParticipants(channelName: string, fromRole?: string): string {
+  const match = channelName.match(/^(?:DM|Group): (.+)$/i);
+  if (!match) return '';
+  const participants = match[1].split(',').map(p => p.trim());
+  // Show the "TO" side — filter out the sender
+  const others = participants
+    .filter(p => p !== fromRole)
+    .map(p => ROLE_LABELS[p] ?? p.toUpperCase());
+  return others.length > 0 ? `→ ${others.join(', ')}` : '';
+}
+
 export function SurveillancePanel({
   gameId,
   gameState,
@@ -49,52 +59,72 @@ export function SurveillancePanel({
   const [filter, setFilter] = useState<Filter>('all');
   const [messages, setMessages] = useState<SurveillanceMessage[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [covertOpsCount, setCovertOpsCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
-  // Fetch all messages
+  // Fetch all messages + covert operations
   useEffect(() => {
     if (!gameId) return;
 
-    async function fetchMessages() {
+    async function fetchAll() {
       try {
-        const res = await fetch(`/api/games/${gameId}/messages/all`);
-        if (!res.ok) return;
-        const data = await res.json();
+        // Fetch messages and covert ops in parallel
+        const [msgRes, covertRes] = await Promise.all([
+          fetch(`/api/games/${gameId}/messages/all`).catch(() => null),
+          fetch(`/api/games/${gameId}/covert`).catch(() => null),
+        ]);
 
-        const mapped: SurveillanceMessage[] = (data as any[])
-          .filter((m: any) => m.channel_type !== 'public')
-          .map((m: any) => ({
-            id: m.id,
-            type: m.channel_type === 'dm' ? 'dm' : m.channel_type === 'group' ? 'group' : m.channel_type === 'country' ? 'country' : 'public',
-            from: m.from,
-            content: m.content,
-            timestamp: m.timestamp,
-            channel_name: m.channel_name,
-          }));
+        const mapped: SurveillanceMessage[] = [];
 
-        // Add espionage operations from game state
-        if (gameState?.governments) {
-          for (const gov of Object.values(gameState.governments) as any[]) {
-            if (gov.active_operations) {
-              for (const op of gov.active_operations) {
-                mapped.push({
-                  id: `esp-${op.id}`,
-                  type: 'espionage',
-                  from: gov.id,
-                  content: op.ticks_remaining > 0
-                    ? `ACTIVE OPERATION targeting ${ROLE_LABELS[op.target_id] ?? op.target_id} — ${op.ticks_remaining} ticks remaining${op.detected ? ' [DETECTED]' : ''}`
-                    : `Operation against ${ROLE_LABELS[op.target_id] ?? op.target_id} complete`,
-                  timestamp: Date.now() - (op.ticks_remaining * 2000),
-                  target: op.target_id,
-                  status: op.detected ? 'detected' : 'covert',
-                });
-              }
-            }
+        // Process messages
+        if (msgRes?.ok) {
+          const data = await msgRes.json();
+          for (const m of data as any[]) {
+            if (m.channel_type === 'public') continue;
+            mapped.push({
+              id: m.id,
+              type: m.channel_type === 'dm' ? 'dm' : m.channel_type === 'group' ? 'group' : m.channel_type === 'country' ? 'country' : 'public',
+              from: m.from,
+              content: m.content,
+              timestamp: m.timestamp,
+              channel_name: m.channel_name,
+            });
           }
         }
 
-        // Add agreement events
+        // Process covert operations (espionage)
+        let activeOps = 0;
+        if (covertRes?.ok) {
+          const covertData = await covertRes.json();
+          for (const op of covertData as any[]) {
+            if (op.type === 'espionage_active') {
+              activeOps++;
+              mapped.push({
+                id: `esp-active-${op.initiator_id}-${op.target_id}`,
+                type: 'espionage',
+                from: op.initiator_id,
+                content: `ACTIVE OPERATION targeting ${ROLE_LABELS[op.target_id] ?? op.target_id} — ${op.ticks_remaining}/${op.ticks_total} ticks remaining${op.detected ? ' ⚠ DETECTED' : ''}`,
+                timestamp: op.timestamp,
+                target: op.target_id,
+                status: op.detected ? 'detected' : 'covert',
+              });
+            } else if (op.type === 'espionage_completed') {
+              mapped.push({
+                id: `esp-done-${op.operation_id ?? op.tick}`,
+                type: 'espionage',
+                from: op.initiator_id ?? op.government_id,
+                content: `OPERATION ${op.success ? 'SUCCESSFUL' : 'FAILED'}${op.detected ? ' — DETECTED by target' : ' — undetected'} (tick ${op.tick})`,
+                timestamp: op.timestamp,
+                target: op.target_id,
+                status: op.success ? 'success' : 'failed',
+              });
+            }
+          }
+        }
+        setCovertOpsCount(activeOps);
+
+        // Add agreement events from game state
         if (gameState?.agreements) {
           for (const ag of gameState.agreements) {
             if (ag.status === 'pending') {
@@ -108,12 +138,23 @@ export function SurveillancePanel({
                 parties: ag.parties,
               });
             }
+            if (ag.status === 'active') {
+              mapped.push({
+                id: `ag-a-${ag.id}`,
+                type: 'agreement',
+                from: ag.proposed_by,
+                content: `ACTIVE: ${ag.type?.replace(/_/g, ' ').toUpperCase()} — parties: ${(ag.parties ?? []).map((p: string) => ROLE_LABELS[p] ?? p).join(', ')}`,
+                timestamp: Date.now() - ((gameState.world?.tick_count - (ag.activated_at_tick ?? ag.proposed_at_tick)) * 2000),
+                agreement_type: ag.type,
+                parties: ag.parties,
+              });
+            }
             if (ag.status === 'violated') {
               mapped.push({
                 id: `ag-v-${ag.id}`,
                 type: 'agreement',
                 from: ag.violator_id ?? ag.proposed_by,
-                content: `VIOLATION: ${ag.type?.replace(/_/g, ' ').toUpperCase()} breached`,
+                content: `⚠ VIOLATION: ${ag.type?.replace(/_/g, ' ').toUpperCase()} breached`,
                 timestamp: Date.now(),
                 agreement_type: ag.type,
                 parties: ag.parties,
@@ -134,8 +175,8 @@ export function SurveillancePanel({
       } catch (_e) { /* ignore */ }
     }
 
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
+    fetchAll();
+    const interval = setInterval(fetchAll, 3000);
     return () => clearInterval(interval);
   }, [gameId, gameState, open]);
 
@@ -168,7 +209,7 @@ export function SurveillancePanel({
         border: `1px solid ${filter === f ? '#33ff33' : '#222'}`,
         padding: '2px 8px',
         fontFamily: 'var(--font-mono)',
-        fontSize: '0.65rem',
+        fontSize: '0.7rem',
         cursor: 'pointer',
         letterSpacing: '1px',
       }}
@@ -287,6 +328,7 @@ export function SurveillancePanel({
               const badge = TYPE_BADGES[m.type] ?? TYPE_BADGES.public;
               const time = new Date(m.timestamp);
               const timeStr = time.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const toLabel = m.channel_name ? formatChannelParticipants(m.channel_name, m.from) : '';
 
               return (
                 <div
@@ -296,7 +338,7 @@ export function SurveillancePanel({
                     padding: '6px 8px',
                     borderLeft: `2px solid ${badge.color}`,
                     background: 'rgba(10, 20, 10, 0.5)',
-                    fontSize: '0.75rem',
+                    fontSize: '0.8rem',
                     lineHeight: '1.4',
                   }}
                 >
@@ -306,28 +348,30 @@ export function SurveillancePanel({
                     alignItems: 'center',
                     gap: '6px',
                     marginBottom: '3px',
+                    flexWrap: 'wrap',
                   }}>
                     <span style={{
                       background: badge.color,
                       color: '#000',
-                      padding: '0 4px',
-                      fontSize: '0.55rem',
+                      padding: '1px 5px',
+                      fontSize: '0.65rem',
                       fontWeight: 'bold',
                       letterSpacing: '1px',
+                      whiteSpace: 'nowrap',
                     }}>
                       {badge.label}
                     </span>
-                    <span style={{ color: '#1a8c1a', fontSize: '0.65rem' }}>
+                    <span style={{ color: '#1a8c1a', fontSize: '0.7rem' }}>
                       {timeStr}
                     </span>
                     {m.from && (
-                      <span style={{ color: '#ffaa00', fontSize: '0.7rem', letterSpacing: '1px' }}>
+                      <span style={{ color: '#ffaa00', fontSize: '0.75rem', letterSpacing: '1px' }}>
                         {ROLE_LABELS[m.from] ?? m.from.toUpperCase()}
                       </span>
                     )}
-                    {m.channel_name && m.type !== 'espionage' && m.type !== 'agreement' && (
-                      <span style={{ color: '#1a8c1a', fontSize: '0.6rem' }}>
-                        [{m.channel_name}]
+                    {toLabel && (
+                      <span style={{ color: '#6bcbff', fontSize: '0.7rem', letterSpacing: '1px' }}>
+                        {toLabel}
                       </span>
                     )}
                   </div>
@@ -351,14 +395,16 @@ export function SurveillancePanel({
         <div style={{
           padding: '6px 12px',
           borderTop: '1px solid #1a3a1a',
-          fontSize: '0.6rem',
+          fontSize: '0.65rem',
           color: '#1a8c1a',
           display: 'flex',
           justifyContent: 'space-between',
           letterSpacing: '1px',
         }}>
           <span>{filtered.length} INTERCEPTS</span>
-          <span>{messages.filter(m => m.type === 'espionage').length} ACTIVE OPS</span>
+          <span style={{ color: covertOpsCount > 0 ? '#ff3333' : '#1a8c1a' }}>
+            {covertOpsCount} ACTIVE OPS
+          </span>
         </div>
       </div>
     </>

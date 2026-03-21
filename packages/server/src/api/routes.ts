@@ -248,6 +248,50 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
     res.json(log);
   });
 
+  // Covert operations feed — espionage events extracted from game log
+  app.get('/api/games/:gameId/covert', (req, res) => {
+    const gameId = req.params.gameId;
+    const log = gameManager.getGameLog(gameId);
+    const game = gameManager.getGame(gameId);
+
+    const covertEvents: any[] = [];
+
+    // Active espionage operations from live game state
+    if (game?.espionage_operations) {
+      for (const op of game.espionage_operations) {
+        covertEvents.push({
+          type: 'espionage_active',
+          tick: game.world.tick_count,
+          initiator_id: op.initiator_id,
+          target_id: op.target_id,
+          ticks_remaining: op.ticks_remaining,
+          ticks_total: op.ticks_total,
+          detected: op.detected,
+          budget: op.budget,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    // Completed espionage events from game log
+    if (log) {
+      for (const entry of log) {
+        for (const event of entry.events) {
+          if (event.type === 'espionage_completed') {
+            covertEvents.push({
+              type: 'espionage_completed',
+              tick: entry.tick_number,
+              ...event,
+              timestamp: Date.now() - ((game?.world?.tick_count ?? entry.tick_number) - entry.tick_number) * 2000,
+            });
+          }
+        }
+      }
+    }
+
+    res.json(covertEvents);
+  });
+
   app.get('/api/games/:gameId/summary', (req, res) => {
     const summary = gameManager.getGameLogSummary(req.params.gameId);
     if (!summary) {
