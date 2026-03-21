@@ -645,7 +645,8 @@ function buildCommunicationAnalysis(
   summary: LogSummary,
   messages?: MessageData[],
 ): ReportSection {
-  const totalMessages = summary.total_messages;
+  // Prefer actual message count from messages array over logger count (which may be 0)
+  const totalMessages = (messages && messages.length > 0) ? messages.length : summary.total_messages;
 
   // Per-player message counts (from messages if available)
   const messageCounts: Record<string, number> = {};

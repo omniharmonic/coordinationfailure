@@ -46,6 +46,8 @@ export function processEspionage(
       events.push({
         type: 'espionage_completed',
         operation_id: updated.id,
+        initiator_id: updated.initiator_id,
+        target_id: updated.target_id,
         success,
         detected,
         tick: state.world.tick_count,
