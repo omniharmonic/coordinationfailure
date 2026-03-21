@@ -22,7 +22,11 @@ const PORT = parseInt(process.env.PORT ?? '3000', 10);
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+// Skip body parsing for MCP messages — SSEServerTransport reads the raw stream
+app.use((req, res, next) => {
+  if (req.path === '/mcp/messages') return next();
+  express.json()(req, res, next);
+});
 
 // Shared managers
 export const sessionManager = new SessionManager();
