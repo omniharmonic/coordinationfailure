@@ -418,10 +418,13 @@ export class KnowledgeBase {
   }
 
   private findSimilar(description: string): Pattern | undefined {
-    // Simple similarity: exact match on first 60 chars (normalized)
-    const normalized = description.toLowerCase().trim().slice(0, 60);
+    // Structural similarity: strip numbers/percentages to match patterns that differ only in values
+    // e.g., "safety allocation > 37%" and "safety allocation > 33%" become the same signature
+    const normalize = (s: string) => s.toLowerCase().trim().replace(/[\d.]+%?/g, 'N').replace(/\$[\d,.]+[BbMmKk]?/g, '$N').replace(/\s+/g, ' ').slice(0, 80);
+    const signature = normalize(description);
+
     for (const pattern of this.patterns.values()) {
-      if (pattern.description.toLowerCase().trim().slice(0, 60) === normalized) {
+      if (normalize(pattern.description) === signature) {
         return pattern;
       }
     }

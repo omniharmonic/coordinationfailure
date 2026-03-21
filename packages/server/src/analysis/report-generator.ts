@@ -553,10 +553,28 @@ function buildDiplomacyAgreements(log: TickLogEntry[], summary: LogSummary): Rep
     }
   }
 
+  // Also capture pending/proposed agreements from the final snapshot
+  const lastEntry = log[log.length - 1];
+  if (lastEntry?.agreements_snapshot) {
+    for (const ag of lastEntry.agreements_snapshot) {
+      if (!agreementsMap.has(ag.id)) {
+        agreementsMap.set(ag.id, {
+          id: ag.id,
+          type: ag.type,
+          parties: ag.parties,
+          activated_tick: 0,
+          duration_ticks: 0,
+          status: ag.status,
+        });
+      }
+    }
+  }
+
   const agreements = Array.from(agreementsMap.values());
-  const safetyAgreements = agreements.filter(a => a.type === 'safety_standard' || a.type === 'safety');
+  const safetyAgreements = agreements.filter(a => a.type === 'safety_pact' || a.type === 'safety_standard' || a.type === 'safety' || a.type === 'intl_safety_framework');
   const totalFormed = summary.agreements_formed;
   const totalViolated = summary.agreements_violated;
+  const totalProposed = agreements.filter(a => a.status === 'pending').length;
 
   // Analyze impact: did agreements correlate with stability?
   let impactAnalysis = '';
@@ -571,6 +589,7 @@ function buildDiplomacyAgreements(log: TickLogEntry[], summary: LogSummary): Rep
 
   const lines: string[] = [
     `Agreements formed: ${totalFormed}`,
+    `Agreements proposed (pending): ${totalProposed}`,
     `Agreements violated: ${totalViolated}`,
   ];
 
@@ -585,8 +604,11 @@ function buildDiplomacyAgreements(log: TickLogEntry[], summary: LogSummary): Rep
       const partiesStr = a.parties.map(p => p.toUpperCase()).join(', ');
       const statusStr = a.status === 'violated'
         ? `VIOLATED by ${a.violator?.toUpperCase()} at tick ${a.violated_tick}`
+        : a.status === 'pending'
+        ? 'PENDING (never ratified)'
         : `active (${a.duration_ticks} ticks)`;
-      lines.push(`  [${a.type}] ${partiesStr} — formed tick ${a.activated_tick}, ${statusStr}`);
+      const formedStr = a.activated_tick > 0 ? `formed tick ${a.activated_tick}, ` : '';
+      lines.push(`  [${a.type}] ${partiesStr} — ${formedStr}${statusStr}`);
     }
   }
 

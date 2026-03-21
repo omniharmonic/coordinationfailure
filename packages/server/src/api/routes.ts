@@ -196,8 +196,15 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
                   strategies[roleId] = classifyStrategy(roleId, log);
                 }
 
+                // Gather messages for communication analysis
+                const allMessages = channelManager.getAllMessages(gameId).map(m => ({
+                  from: m.from,
+                  content: m.content,
+                  channel_type: m.channel_type,
+                  timestamp: m.timestamp,
+                }));
                 // Generate the report
-                const report = generatePostGameReport(gameId, log, summary, strategies);
+                const report = generatePostGameReport(gameId, log, summary, strategies, allMessages);
                 reports.set(gameId, report);
 
                 // Generate agent debriefs
@@ -279,9 +286,9 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
         for (const event of entry.events) {
           if (event.type === 'espionage_completed') {
             covertEvents.push({
+              ...event,
               type: 'espionage_completed',
               tick: entry.tick_number,
-              ...event,
               timestamp: Date.now() - ((game?.world?.tick_count ?? entry.tick_number) - entry.tick_number) * 2000,
             });
           }

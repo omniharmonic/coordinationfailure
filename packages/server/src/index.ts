@@ -92,7 +92,14 @@ gameManager.onGameEnd(async (gameId, state, events) => {
       for (const roleId of Object.keys(state.governments ?? {})) {
         strategies[roleId] = classifyStrategy(roleId, log);
       }
-      const report = generatePostGameReport(gameId, log, summary, strategies);
+      // Gather all messages for communication analysis
+      const allMessages = channelManager.getAllMessages(gameId).map(m => ({
+        from: m.from,
+        content: m.content,
+        channel_type: m.channel_type,
+        timestamp: m.timestamp,
+      }));
+      const report = generatePostGameReport(gameId, log, summary, strategies, allMessages);
       gameReports.set(gameId, report);
       db.reports.save(gameId, report);
       knowledgeBase.extractPatternsFromGame(report, gameId);
