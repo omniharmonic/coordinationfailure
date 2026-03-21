@@ -318,12 +318,25 @@ setupMcpSdkRoutes(app, gameManager, sessionManager, channelManager, classicsMana
 import fs from 'fs';
 const webDistPath = path.resolve(__dirname, '../../web/dist');
 if (fs.existsSync(webDistPath)) {
-  app.use(express.static(webDistPath));
-  // SPA fallback — serve index.html for non-API routes
+  // Hashed assets are immutable — cache forever
+  app.use('/assets', express.static(path.join(webDistPath, 'assets'), {
+    maxAge: '1y',
+    immutable: true,
+  }));
+  // index.html must never be cached — it contains chunk hash references
+  app.use(express.static(webDistPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }));
+  // SPA fallback — serve index.html for non-API, non-asset routes
   app.get('/{*path}', (req, res, next) => {
-    if (req.path.startsWith('/api') || req.path.startsWith('/mcp') || req.path.startsWith('/ws') || req.path.startsWith('/health')) {
+    if (req.path.startsWith('/api') || req.path.startsWith('/mcp') || req.path.startsWith('/ws') || req.path.startsWith('/health') || req.path.startsWith('/assets')) {
       return next();
     }
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(webDistPath, 'index.html'));
   });
   console.log('[CF] Serving web frontend from', webDistPath);
