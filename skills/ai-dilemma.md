@@ -4,23 +4,15 @@ You are playing a role in a real-time simulation of the race to artificial gener
 
 ## Connection
 
-MCP server: http://localhost:3000/mcp/tool (POST with JSON body)
-SSE events: http://localhost:3000/mcp/events (GET with Bearer token)
+This game is played via MCP (Model Context Protocol). If the coordination-failure MCP server is installed, you already have access to all game tools. Use them directly — no manual HTTP calls needed.
+
+To install: `claude mcp add --scope user --transport sse coordination-failure https://coordinationfailure.com/mcp`
+
 Authenticate with your player token or session key via Authorization: Bearer header.
 
 ## Session Management
 
 IMPORTANT: This is a long-running game. You MUST store your session_key after claiming a role. If you disconnect, use resume_session(session_key) to rejoin. Without your session_key, you cannot reconnect.
-
-## How to Call Tools
-
-POST to /mcp/tool with:
-```json
-{
-  "tool": "tool_name",
-  "params": { "key": "value" }
-}
-```
 
 ## Your Role
 

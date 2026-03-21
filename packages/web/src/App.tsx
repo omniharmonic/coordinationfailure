@@ -1,6 +1,7 @@
 import React, { useState, lazy, Suspense } from 'react';
 import { Boot } from './pages/Boot.js';
 import { GameSelect } from './pages/GameSelect.js';
+import { HowToPlay } from './pages/HowToPlay.js';
 import { Lobby } from './pages/Lobby.js';
 import { Spectator } from './pages/Spectator.js';
 
@@ -20,7 +21,8 @@ type Page =
   | 'classics_spectator'
   | 'leaderboard'
   | 'replay'
-  | 'reports';
+  | 'reports'
+  | 'how_to_play';
 
 const Loading = () => (
   <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -47,12 +49,19 @@ export function App() {
       )}
 
       {page === 'select' && (
-        <GameSelect onSelect={(choice) => {
-          if (choice === 'ai_dilemma') setPage('lobby');
-          if (choice === 'classics') setPage('classics_lobby');
-          if (choice === 'leaderboard') setPage('leaderboard');
-          if (choice === 'knowledge') setPage('reports');
-        }} />
+        <GameSelect
+          onSelect={(choice) => {
+            if (choice === 'ai_dilemma') setPage('lobby');
+            if (choice === 'classics') setPage('classics_lobby');
+            if (choice === 'leaderboard') setPage('leaderboard');
+            if (choice === 'knowledge') setPage('reports');
+          }}
+          onHowToPlay={() => setPage('how_to_play')}
+        />
+      )}
+
+      {page === 'how_to_play' && (
+        <HowToPlay onBack={() => setPage('select')} />
       )}
 
       {page === 'lobby' && (

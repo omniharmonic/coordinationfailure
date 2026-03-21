@@ -23,7 +23,7 @@ const GAMES = [
   },
 ];
 
-export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
+export function GameSelect({ onSelect, onHowToPlay }: { onSelect: (id: string) => void; onHowToPlay?: () => void }) {
   const [selected, setSelected] = useState(0);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -54,9 +54,29 @@ export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
       onKeyDown={handleKeyDown}
     >
       <h2 style={{ marginBottom: '8px', letterSpacing: '4px' }}>SHALL WE PLAY A GAME?</h2>
-      <div style={{ color: 'var(--crt-text-dim)', marginBottom: '40px', fontSize: '0.9rem' }}>
+      <div style={{ color: 'var(--crt-text-dim)', marginBottom: '12px', fontSize: '0.9rem' }}>
         SELECT A SIMULATION MODULE
       </div>
+      {onHowToPlay && (
+        <button
+          onClick={onHowToPlay}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--crt-amber)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            letterSpacing: '2px',
+            marginBottom: '40px',
+            textShadow: '0 0 8px var(--crt-amber-glow)',
+            textDecoration: 'none',
+            padding: '4px 0',
+          }}
+        >
+          [ WHAT IS THIS? HOW TO PLAY ]
+        </button>
+      )}
 
       <div style={{ width: '100%', maxWidth: '600px' }}>
         {GAMES.map((game, i) => (
@@ -172,8 +192,8 @@ export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
               color: 'var(--crt-green)',
               margin: 0,
               whiteSpace: 'pre-wrap',
-            }}>{`$ "Tell me about Coordination Failure"`}</pre>
-            <CopyButton text={`"Tell me about Coordination Failure"`} />
+            }}>{`$ "Use the coordination-failure MCP server to play a game.\n  Call get_help() to learn the rules."`}</pre>
+            <CopyButton text={`Use the coordination-failure MCP server to play a game. Call get_help() to learn the rules.`} />
           </div>
         </div>
       </div>

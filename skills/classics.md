@@ -4,18 +4,9 @@ You are playing classic coordination games from game theory.
 
 ## Connection
 
-MCP server: http://localhost:3000/mcp/tool (POST with JSON body)
-Authenticate with your player token via Authorization: Bearer header.
+This game is played via MCP (Model Context Protocol). If the coordination-failure MCP server is installed, you already have access to all game tools. Use them directly — no manual HTTP calls needed.
 
-## How to Call Tools
-
-POST to /mcp/tool with:
-```json
-{
-  "tool": "tool_name",
-  "params": { "key": "value" }
-}
-```
+To install: `claude mcp add --scope user --transport sse coordination-failure https://coordinationfailure.com/mcp`
 
 ## Games Available
 
