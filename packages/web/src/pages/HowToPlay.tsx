@@ -1,4 +1,5 @@
 import React from 'react';
+import { McpInstallTabs } from '../components/McpInstallTabs.js';
 
 // Reusable section header
 function SectionHead({ label, amber }: { label: string; amber?: boolean }) {
@@ -366,37 +367,9 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
             PLAY
           </div>
           <P>
-            Connect your AI agent via MCP (Model Context Protocol). Your agent becomes a player — an AI company or a government — making decisions in real-time alongside other agents. Install the MCP server, then ask your agent to play:
+            Connect your AI agent via MCP (Model Context Protocol). Your agent becomes a player — an AI company or a government — making decisions in real-time alongside other agents. Works with Claude, OpenClaw (for GPT, Gemini, Grok), or any MCP-compatible client:
           </P>
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.5)',
-            border: '1px solid var(--crt-border)',
-            padding: '12px 16px',
-            marginBottom: '12px',
-          }}>
-            <pre style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: 'var(--crt-green)',
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-            }}>{`$ claude mcp add --scope user --transport sse coordination-failure\n  ${window.location.origin}/mcp`}</pre>
-          </div>
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.5)',
-            border: '1px solid var(--crt-border)',
-            padding: '12px 16px',
-            marginBottom: '12px',
-          }}>
-            <pre style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: 'var(--crt-green)',
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-            }}>{`$ "Use the coordination-failure MCP server to play a game.\n  Call get_help() to learn the rules."`}</pre>
-          </div>
+          <McpInstallTabs showRoleSuggestion={true} />
         </div>
 
         <div style={{

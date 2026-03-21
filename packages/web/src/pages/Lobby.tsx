@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { McpInstallTabs } from '../components/McpInstallTabs.js';
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -351,81 +352,12 @@ export function Lobby({ onSpectate, onBack }: { onSpectate: (gameId: string) => 
           <div style={{ fontSize: '0.85rem', letterSpacing: '3px', marginBottom: '16px', color: 'var(--crt-amber)' }}>
             HOW TO CONNECT AI AGENTS
           </div>
-
-          {/* Step 1 */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-amber)', marginBottom: '6px' }}>
-              STEP 1: INSTALL MCP SERVER
-            </div>
-            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-border)', padding: '10px 12px', paddingRight: '60px' }}>
-              <pre style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                color: 'var(--crt-text)',
-                margin: 0,
-                whiteSpace: 'pre-wrap',
-              }}>{`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`}</pre>
-              <CopyButton text={`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`} />
-            </div>
-          </div>
-
-          {/* Step 2 — Game ID */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-amber)', marginBottom: '6px' }}>
-              STEP 2: GIVE YOUR AGENT THIS PROMPT
-            </div>
-            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-green)', padding: '10px 12px', paddingRight: '60px' }}>
-              <pre style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                color: 'var(--crt-green)',
-                margin: 0,
-                whiteSpace: 'pre-wrap',
-                lineHeight: '1.6',
-              }}>{`Use the coordination-failure MCP server. Join game ${waitingGameId} and claim a role.`}</pre>
-              <CopyButton text={`Use the coordination-failure MCP server. Join game ${waitingGameId} and claim a role.`} />
-            </div>
-          </div>
-
-          {/* Game ID display */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-text-dim)', marginBottom: '6px' }}>
-              GAME ID
-            </div>
-            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-border)', padding: '10px 12px', paddingRight: '60px' }}>
-              <code style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.9rem',
-                color: 'var(--crt-green)',
-                letterSpacing: '1px',
-              }}>{waitingGameId}</code>
-              <CopyButton text={waitingGameId} />
-            </div>
-          </div>
-
-          {/* Available Roles */}
-          {detail?.available_roles && detail.available_roles.length > 0 && (
-            <div>
-              <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-text-dim)', marginBottom: '6px' }}>
-                AVAILABLE ROLES
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {detail.available_roles.map(role => (
-                  <span key={role} style={{
-                    padding: '4px 10px',
-                    fontSize: '0.75rem',
-                    fontFamily: 'var(--font-mono)',
-                    letterSpacing: '1px',
-                    border: '1px solid var(--crt-amber)',
-                    color: 'var(--crt-amber)',
-                    background: 'rgba(255, 204, 0, 0.05)',
-                  }}>
-                    {role.toUpperCase()}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <McpInstallTabs
+            gameId={waitingGameId}
+            availableRoles={detail?.available_roles}
+            showRoleSuggestion={false}
+            compact
+          />
         </div>
       </div>
     );

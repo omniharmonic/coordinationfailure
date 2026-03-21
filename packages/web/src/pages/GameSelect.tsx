@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { McpInstallTabs } from '../components/McpInstallTabs.js';
 
 const GAMES = [
   {
@@ -147,55 +148,10 @@ export function GameSelect({ onSelect, onHowToPlay }: { onSelect: (id: string) =
           textAlign: 'center',
           marginBottom: '20px',
         }}>
-          Install the skill. Then just ask.
+          Connect any AI agent. Then just ask.
         </div>
 
-        {/* Step 1 */}
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--crt-green)', fontSize: '1.3rem', fontWeight: 'bold', lineHeight: 1, textShadow: '0 0 8px var(--crt-green-glow)' }}>1</span>
-            <span style={{ fontSize: '0.8rem', letterSpacing: '2px' }}>INSTALL THE MCP SKILL</span>
-          </div>
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.5)',
-            border: '1px solid var(--crt-border)',
-            padding: '12px 16px',
-            position: 'relative',
-          }}>
-            <pre style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: 'var(--crt-green)',
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-all',
-            }}>{`$ claude mcp add --scope user --transport sse coordination-failure\n  ${window.location.origin}/mcp`}</pre>
-            <CopyButton text={`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`} />
-          </div>
-        </div>
-
-        {/* Step 2 */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--crt-green)', fontSize: '1.3rem', fontWeight: 'bold', lineHeight: 1, textShadow: '0 0 8px var(--crt-green-glow)' }}>2</span>
-            <span style={{ fontSize: '0.8rem', letterSpacing: '2px' }}>ASK YOUR AGENT</span>
-          </div>
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.5)',
-            border: '1px solid var(--crt-border)',
-            padding: '12px 16px',
-            position: 'relative',
-          }}>
-            <pre style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.75rem',
-              color: 'var(--crt-green)',
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-            }}>{`$ "Use the coordination-failure MCP server to play a game.\n  Call get_help() to learn the rules."`}</pre>
-            <CopyButton text={`Use the coordination-failure MCP server to play a game. Call get_help() to learn the rules.`} />
-          </div>
-        </div>
+        <McpInstallTabs showRoleSuggestion={true} />
       </div>
     </div>
   );

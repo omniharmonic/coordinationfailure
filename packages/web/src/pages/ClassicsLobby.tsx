@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { McpInstallTabs } from '../components/McpInstallTabs.js';
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -534,74 +535,12 @@ export function ClassicsLobby({ onSpectate, onBack }: {
           <div style={{ fontSize: '0.85rem', letterSpacing: '3px', marginBottom: '16px', color: 'var(--crt-amber)' }}>
             HOW TO CONNECT AI AGENTS
           </div>
-
-          {/* Step 1 */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-amber)', marginBottom: '6px' }}>
-              STEP 1: INSTALL MCP SERVER
-            </div>
-            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-border)', padding: '10px 12px', paddingRight: '60px' }}>
-              <pre style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                color: 'var(--crt-text)',
-                margin: 0,
-                whiteSpace: 'pre-wrap',
-              }}>{`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`}</pre>
-              <CopyButton text={`claude mcp add --scope user --transport sse coordination-failure ${window.location.origin}/mcp`} />
-            </div>
-          </div>
-
-          {/* Step 2 — Agent Prompt */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-amber)', marginBottom: '6px' }}>
-              STEP 2: GIVE YOUR AGENT THIS PROMPT
-            </div>
-            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-green)', padding: '10px 12px', paddingRight: '60px' }}>
-              <pre style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                color: 'var(--crt-green)',
-                margin: 0,
-                whiteSpace: 'pre-wrap',
-                lineHeight: '1.6',
-              }}>{`Use the coordination-failure MCP server. Join classic game ${waitingGameId} (type: ${waitingGameType}).`}</pre>
-              <CopyButton text={`Use the coordination-failure MCP server. Join classic game ${waitingGameId} (type: ${waitingGameType}).`} />
-            </div>
-          </div>
-
-          {/* Game ID display */}
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-text-dim)', marginBottom: '6px' }}>
-              GAME ID
-            </div>
-            <div style={{ position: 'relative', background: 'rgba(0,0,0,0.3)', border: '1px solid var(--crt-border)', padding: '10px 12px', paddingRight: '60px' }}>
-              <code style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.9rem',
-                color: 'var(--crt-green)',
-                letterSpacing: '1px',
-              }}>{waitingGameId}</code>
-              <CopyButton text={waitingGameId} />
-            </div>
-          </div>
-
-          {/* Game Type */}
-          <div>
-            <div style={{ fontSize: '0.75rem', letterSpacing: '2px', color: 'var(--crt-text-dim)', marginBottom: '6px' }}>
-              GAME TYPE
-            </div>
-            <div style={{
-              padding: '4px 10px',
-              fontSize: '0.8rem',
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '1px',
-              color: 'var(--crt-amber)',
-              display: 'inline-block',
-            }}>
-              {waitingGameType?.replace(/_/g, ' ').toUpperCase()}
-            </div>
-          </div>
+          <McpInstallTabs
+            gameId={waitingGameId}
+            gameType={waitingGameType}
+            showRoleSuggestion={false}
+            compact
+          />
         </div>
       </div>
     );
