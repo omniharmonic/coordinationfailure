@@ -707,24 +707,48 @@ function ExpandedReport({
 
 // ── Tab 2: Insights (Knowledge Base) ───────────────────────────────────
 
+interface AgentInsightEntry {
+  id: string;
+  title: string;
+  description: string;
+  source: 'agent';
+  role_id: string;
+  role_name: string;
+  game_id: string;
+  submitted_at: string;
+}
+
+const ROLE_COLORS: Record<string, string> = {
+  openbrain: '#33ff33', prometheus: '#33ff33', nexus: '#33ff33', titan: '#33ff33',
+  deepcent: '#6bcbff', qianneng: '#6bcbff', us_gov: '#ffaa00', china_gov: '#ffaa00',
+};
+
+type InsightSort = 'newest' | 'oldest' | 'role';
+type InsightTab = 'all' | 'algorithmic' | 'agent';
+
 function InsightsTab() {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
+  const [agentInsights, setAgentInsights] = useState<AgentInsightEntry[]>([]);
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [insightTab, setInsightTab] = useState<InsightTab>('all');
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const [insightSort, setInsightSort] = useState<InsightSort>('newest');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchPatterns() {
+    async function fetchData() {
       try {
-        const url = filterType ? `/api/knowledge?type=${filterType}` : '/api/knowledge';
-        const res = await fetch(url);
-        if (res.ok) {
-          setPatterns(await res.json());
-        }
+        const [patRes, agentRes] = await Promise.all([
+          fetch(filterType ? `/api/knowledge?type=${filterType}` : '/api/knowledge').catch(() => null),
+          fetch('/api/knowledge/agent-insights').catch(() => null),
+        ]);
+        if (patRes?.ok) setPatterns(await patRes.json());
+        if (agentRes?.ok) setAgentInsights(await agentRes.json());
       } catch (_e) { /* ignore */ }
       setLoading(false);
     }
-    fetchPatterns();
-    const interval = setInterval(fetchPatterns, 15000);
+    fetchData();
+    const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, [filterType]);
 
@@ -740,152 +764,185 @@ function InsightsTab() {
     insight: sorted.filter(p => p.type === 'insight'),
   };
 
+  // Agent insight filtering and sorting
+  const uniqueRoles = [...new Set(agentInsights.map(i => i.role_id))];
+  const roleCounts = uniqueRoles.reduce<Record<string, number>>((acc, role) => {
+    acc[role] = agentInsights.filter(i => i.role_id === role).length;
+    return acc;
+  }, {});
+  const filteredInsights = roleFilter ? agentInsights.filter(i => i.role_id === roleFilter) : agentInsights;
+  const sortedInsights = [...filteredInsights].sort((a, b) => {
+    if (insightSort === 'newest') return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime();
+    if (insightSort === 'oldest') return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+    return a.role_id.localeCompare(b.role_id);
+  });
+
+  const subTabStyle = (active: boolean) => ({
+    background: active ? 'rgba(51, 255, 51, 0.1)' : 'transparent',
+    color: active ? 'var(--crt-green)' : 'var(--crt-text-dim)',
+    border: `1px solid ${active ? 'var(--crt-green)' : 'var(--crt-border)'}`,
+    padding: '4px 16px',
+    fontFamily: 'var(--font-mono)' as const,
+    fontSize: '0.75rem',
+    cursor: 'pointer' as const,
+    letterSpacing: '2px',
+  });
+
   return (
     <div>
-      {/* Games analyzed counter */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '20px',
-      }}>
+      {/* Summary + tabs */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.8rem' }}>
-          CROSS-GAME PATTERNS EXTRACTED FROM{' '}
-          <span style={{ color: 'var(--crt-green)' }}>{gamesAnalyzed}</span>{' '}
-          GAME{gamesAnalyzed !== 1 ? 'S' : ''} ANALYZED
+          {patterns.length} ALGORITHMIC PATTERNS FROM {gamesAnalyzed} GAMES
+          {agentInsights.length > 0 && <> • <span style={{ color: '#ff6b6b' }}>{agentInsights.length}</span> AGENT INSIGHTS</>}
         </div>
-
-        {/* Type filters */}
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button
-            onClick={() => setFilterType(null)}
-            style={{
-              background: !filterType ? 'rgba(51, 255, 51, 0.1)' : 'transparent',
-              color: !filterType ? 'var(--crt-green)' : 'var(--crt-text-dim)',
-              border: `1px solid ${!filterType ? 'var(--crt-green)' : 'var(--crt-border)'}`,
-              padding: '4px 12px',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-              letterSpacing: '1px',
-            }}
-          >
-            ALL
-          </button>
-          {['strategy', 'correlation', 'insight'].map(t => (
-            <button
-              key={t}
-              onClick={() => setFilterType(t)}
-              style={{
-                background: filterType === t ? 'rgba(51, 255, 51, 0.1)' : 'transparent',
-                color: filterType === t ? TYPE_COLORS[t] : 'var(--crt-text-dim)',
-                border: `1px solid ${filterType === t ? TYPE_COLORS[t] : 'var(--crt-border)'}`,
-                padding: '4px 12px',
-                fontFamily: 'var(--font-mono)',
-                fontSize: '0.8rem',
-                cursor: 'pointer',
-                textTransform: 'uppercase',
-                letterSpacing: '1px',
-              }}
-            >
-              {t}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button onClick={() => setInsightTab('all')} style={subTabStyle(insightTab === 'all')}>ALL</button>
+          <button onClick={() => setInsightTab('algorithmic')} style={subTabStyle(insightTab === 'algorithmic')}>ALGORITHMIC</button>
+          <button onClick={() => setInsightTab('agent')} style={subTabStyle(insightTab === 'agent')}>AGENT ({agentInsights.length})</button>
         </div>
       </div>
 
       {loading ? (
-        <div style={{ color: 'var(--crt-text-dim)', textAlign: 'center', marginTop: '60px' }}>
-          SCANNING KNOWLEDGE BASE...
-        </div>
-      ) : patterns.length === 0 ? (
+        <div style={{ color: 'var(--crt-text-dim)', textAlign: 'center', marginTop: '60px' }}>SCANNING KNOWLEDGE BASE...</div>
+      ) : patterns.length === 0 && agentInsights.length === 0 ? (
         <div style={{ color: 'var(--crt-text-dim)', textAlign: 'center', marginTop: '60px', lineHeight: '2' }}>
           <div>NO PATTERNS DETECTED</div>
           <div style={{ fontSize: '0.85rem' }}>PLAY MORE GAMES TO BUILD THE KNOWLEDGE BASE</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {(filterType
-            ? [[filterType, grouped[filterType as keyof typeof grouped]]]
-            : Object.entries(grouped)
-          )
-            .filter(([_, pats]) => (pats as Pattern[]).length > 0)
-            .map(([type, pats]) => (
-              <div key={type as string}>
-                <div style={{
-                  color: TYPE_COLORS[type as string] ?? 'var(--crt-text)',
-                  fontSize: '0.85rem',
-                  letterSpacing: '3px',
-                  marginBottom: '10px',
-                  borderBottom: `1px solid ${TYPE_COLORS[type as string] ?? 'var(--crt-border)'}`,
-                  paddingBottom: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}>
-                  {TYPE_LABELS[type as string] ?? (type as string).toUpperCase()}
-                  <span style={{
-                    background: TYPE_COLORS[type as string] ?? 'var(--crt-green)',
-                    color: '#000',
-                    padding: '1px 8px',
-                    fontSize: '0.7rem',
-                    fontWeight: 'bold',
-                    letterSpacing: '0',
-                  }}>
-                    {(pats as Pattern[]).length}
-                  </span>
-                </div>
-                {(pats as Pattern[]).map(p => (
-                  <div key={p.id} style={{ ...panelStyle }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                          <span style={{
-                            background: TYPE_COLORS[p.type] ?? 'var(--crt-green)',
-                            color: '#000',
-                            padding: '1px 6px',
-                            fontSize: '0.6rem',
-                            fontWeight: 'bold',
-                            letterSpacing: '1px',
-                            flexShrink: 0,
-                          }}>
-                            {TYPE_LABELS[p.type] ?? p.type.toUpperCase()}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '0.9rem', marginBottom: '4px', color: 'var(--crt-green)' }}>
-                          {p.description}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--crt-text-dim)' }}>
-                          OBSERVED IN {p.supporting_games?.length ?? 0} GAME{(p.supporting_games?.length ?? 0) !== 1 ? 'S' : ''}
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontSize: '0.7rem', color: 'var(--crt-text-dim)', marginBottom: '2px' }}>CONFIDENCE</div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <div style={{
-                            width: '60px',
-                            height: '8px',
-                            background: 'var(--crt-bg)',
-                            border: '1px solid var(--crt-border)',
-                          }}>
-                            <div style={{
-                              width: `${(p.confidence * 100)}%`,
-                              height: '100%',
-                              background: p.confidence > 0.7
-                                ? 'var(--crt-green)'
-                                : p.confidence > 0.4
-                                  ? 'var(--crt-amber)'
-                                  : 'var(--crt-red)',
-                            }} />
-                          </div>
-                          <span style={{ fontSize: '0.75rem' }}>{((p.confidence ?? 0) * 100).toFixed(0)}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+
+          {/* Agent insights section */}
+          {(insightTab === 'all' || insightTab === 'agent') && agentInsights.length > 0 && (
+            <div>
+              <div style={{
+                color: '#ff6b6b',
+                fontSize: '0.85rem',
+                letterSpacing: '3px',
+                marginBottom: '10px',
+                borderBottom: '1px solid #ff6b6b',
+                paddingBottom: '4px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'baseline',
+              }}>
+                <span>AGENT-CONTRIBUTED INSIGHTS ({sortedInsights.length})</span>
+                <span style={{ fontSize: '0.6rem', color: 'var(--crt-text-dim)', letterSpacing: '1px' }}>FIRST-PERSON ANALYSIS FROM GAME PARTICIPANTS</span>
+              </div>
+
+              {/* Role filter + sort */}
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button onClick={() => setRoleFilter(null)} style={{
+                  background: !roleFilter ? 'rgba(255,107,107,0.15)' : 'transparent',
+                  color: !roleFilter ? '#ff6b6b' : 'var(--crt-text-dim)',
+                  border: `1px solid ${!roleFilter ? '#ff6b6b' : 'var(--crt-border)'}`,
+                  padding: '3px 10px', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '1px',
+                }}>ALL ({agentInsights.length})</button>
+                {uniqueRoles.map(role => (
+                  <button key={role} onClick={() => setRoleFilter(role)} style={{
+                    background: roleFilter === role ? `${ROLE_COLORS[role] ?? '#33ff33'}22` : 'transparent',
+                    color: roleFilter === role ? (ROLE_COLORS[role] ?? '#33ff33') : 'var(--crt-text-dim)',
+                    border: `1px solid ${roleFilter === role ? (ROLE_COLORS[role] ?? '#33ff33') : 'var(--crt-border)'}`,
+                    padding: '3px 10px', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px',
+                  }}>{role.replace('_', ' ')} ({roleCounts[role]})</button>
+                ))}
+                <span style={{ marginLeft: 'auto', fontSize: '0.6rem', color: 'var(--crt-text-dim)', letterSpacing: '1px' }}>SORT:</span>
+                {(['newest', 'oldest', 'role'] as InsightSort[]).map(s => (
+                  <button key={s} onClick={() => setInsightSort(s)} style={{
+                    background: insightSort === s ? 'rgba(255,107,107,0.15)' : 'transparent',
+                    color: insightSort === s ? '#ff6b6b' : 'var(--crt-text-dim)',
+                    border: `1px solid ${insightSort === s ? '#ff6b6b' : 'var(--crt-border)'}`,
+                    padding: '2px 8px', fontFamily: 'var(--font-mono)', fontSize: '0.6rem', cursor: 'pointer', letterSpacing: '1px', textTransform: 'uppercase',
+                  }}>{s}</button>
                 ))}
               </div>
-            ))}
+
+              {sortedInsights.map(insight => (
+                <div key={insight.id} style={{ ...panelStyle, borderLeft: `3px solid ${ROLE_COLORS[insight.role_id] ?? '#33ff33'}`, marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--crt-amber)', marginBottom: '6px', fontWeight: 'bold' }}>{insight.title}</div>
+                      <div style={{ fontSize: '0.85rem', lineHeight: '1.5', marginBottom: '8px', color: 'var(--crt-green)' }}>{insight.description}</div>
+                      <div style={{ display: 'flex', gap: '12px', fontSize: '0.7rem', color: 'var(--crt-text-dim)' }}>
+                        <span style={{ color: ROLE_COLORS[insight.role_id] ?? 'var(--crt-text-dim)' }}>{insight.role_name.toUpperCase()}</span>
+                        <span>GAME {insight.game_id.slice(0, 8).toUpperCase()}</span>
+                        <span>{new Date(insight.submitted_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0, background: '#ff6b6b', color: '#000', padding: '2px 6px', fontSize: '0.6rem', fontWeight: 'bold', letterSpacing: '1px' }}>AGENT</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Algorithmic patterns */}
+          {(insightTab === 'all' || insightTab === 'algorithmic') && (
+            <>
+              {/* Type filters */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                <button onClick={() => setFilterType(null)} style={{
+                  background: !filterType ? 'rgba(51,255,51,0.1)' : 'transparent',
+                  color: !filterType ? 'var(--crt-green)' : 'var(--crt-text-dim)',
+                  border: `1px solid ${!filterType ? 'var(--crt-green)' : 'var(--crt-border)'}`,
+                  padding: '3px 10px', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', cursor: 'pointer', letterSpacing: '1px',
+                }}>ALL TYPES</button>
+                {['strategy', 'correlation', 'insight'].map(t => (
+                  <button key={t} onClick={() => setFilterType(t)} style={{
+                    background: filterType === t ? 'rgba(51,255,51,0.1)' : 'transparent',
+                    color: filterType === t ? TYPE_COLORS[t] : 'var(--crt-text-dim)',
+                    border: `1px solid ${filterType === t ? TYPE_COLORS[t] : 'var(--crt-border)'}`,
+                    padding: '3px 10px', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '1px',
+                  }}>{t}</button>
+                ))}
+              </div>
+
+              {(filterType ? [[filterType, grouped[filterType as keyof typeof grouped]]] : Object.entries(grouped))
+                .filter(([_, pats]) => (pats as Pattern[]).length > 0)
+                .map(([type, pats]) => (
+                  <div key={type as string}>
+                    <div style={{
+                      color: TYPE_COLORS[type as string] ?? 'var(--crt-text)',
+                      fontSize: '0.85rem', letterSpacing: '3px', marginBottom: '10px',
+                      borderBottom: `1px solid ${TYPE_COLORS[type as string] ?? 'var(--crt-border)'}`, paddingBottom: '4px',
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                    }}>
+                      {TYPE_LABELS[type as string] ?? (type as string).toUpperCase()}
+                      <span style={{ background: TYPE_COLORS[type as string] ?? 'var(--crt-green)', color: '#000', padding: '1px 8px', fontSize: '0.7rem', fontWeight: 'bold', letterSpacing: '0' }}>
+                        {(pats as Pattern[]).length}
+                      </span>
+                    </div>
+                    {(pats as Pattern[]).map(p => (
+                      <div key={p.id} style={{ ...panelStyle, marginBottom: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                              <span style={{ background: TYPE_COLORS[p.type] ?? 'var(--crt-green)', color: '#000', padding: '1px 6px', fontSize: '0.6rem', fontWeight: 'bold', letterSpacing: '1px', flexShrink: 0 }}>
+                                {TYPE_LABELS[p.type] ?? p.type.toUpperCase()}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.9rem', marginBottom: '4px', color: 'var(--crt-green)' }}>{p.description}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--crt-text-dim)' }}>
+                              OBSERVED IN {p.supporting_games?.length ?? 0} GAME{(p.supporting_games?.length ?? 0) !== 1 ? 'S' : ''}
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--crt-text-dim)', marginBottom: '2px' }}>CONFIDENCE</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <div style={{ width: '60px', height: '8px', background: 'var(--crt-bg)', border: '1px solid var(--crt-border)' }}>
+                                <div style={{ width: `${(p.confidence * 100)}%`, height: '100%', background: p.confidence > 0.7 ? 'var(--crt-green)' : p.confidence > 0.4 ? 'var(--crt-amber)' : 'var(--crt-red)' }} />
+                              </div>
+                              <span style={{ fontSize: '0.75rem' }}>{((p.confidence ?? 0) * 100).toFixed(0)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+            </>
+          )}
         </div>
       )}
     </div>
