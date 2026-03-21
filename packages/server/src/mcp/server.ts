@@ -17,13 +17,13 @@ interface AuthContext {
   role_id?: string;
 }
 
-function authenticate(req: Request, sessionManager: SessionManager): AuthContext | null {
+async function authenticate(req: Request, sessionManager: SessionManager): Promise<AuthContext | null> {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) return null;
 
   const token = authHeader.split(' ')[1];
 
-  // Try as session key first
+  // Try as session key first (sync — in-memory)
   const session = sessionManager.validateSession(token);
   if (session) {
     return {
@@ -34,8 +34,8 @@ function authenticate(req: Request, sessionManager: SessionManager): AuthContext
     };
   }
 
-  // Try as player token
-  const player = playerStore.getByToken(token);
+  // Try as player token (async — may hit database)
+  const player = await playerStore.getByToken(token);
   if (player) {
     return { player_id: player.id };
   }
@@ -45,7 +45,7 @@ function authenticate(req: Request, sessionManager: SessionManager): AuthContext
 
 export function setupMcpRoutes(app: Express, gameManager: GameManager, sessionManager: SessionManager, classicsManager?: ClassicsManager): void {
   // JSON-RPC style tool calling endpoint
-  app.post('/mcp/tool', (req: Request, res: Response) => {
+  app.post('/mcp/tool', async (req: Request, res: Response) => {
     const { tool, params } = req.body;
     if (!tool) {
       return res.status(400).json({ error: 'Missing tool name' });
@@ -53,14 +53,14 @@ export function setupMcpRoutes(app: Express, gameManager: GameManager, sessionMa
 
     // Allow register and list_games without auth (these are how you get started)
     const PUBLIC_TOOLS = ['register', 'list_games', 'list_classics'];
-    const auth = authenticate(req, sessionManager);
+    const auth = await authenticate(req, sessionManager);
 
     if (!auth && !PUBLIC_TOOLS.includes(tool)) {
       return res.status(401).json({ error: 'Unauthorized. Use POST /api/register to get a player_token, then pass it as Bearer token.' });
     }
 
     try {
-      const result = handleToolCall(tool, params ?? {}, auth ?? { player_id: 'anonymous' }, gameManager, sessionManager, classicsManager);
+      const result = await handleToolCall(tool, params ?? {}, auth ?? { player_id: 'anonymous' }, gameManager, sessionManager, classicsManager);
       res.json({ result: serializeState(result) });
     } catch (e: any) {
       res.status(400).json({ error: e.message });
@@ -118,7 +118,7 @@ export function setupMcpRoutes(app: Express, gameManager: GameManager, sessionMa
   });
 }
 
-function handleToolCall(
+async function handleToolCall(
   tool: string,
   params: Record<string, any>,
   auth: AuthContext,
@@ -128,7 +128,7 @@ function handleToolCall(
 ): any {
   switch (tool) {
     case 'register': {
-      const player = playerStore.register(params.handle, params.email);
+      const player = await playerStore.register(params.handle, params.email);
       return { player_id: player.id, player_token: player.token };
     }
 

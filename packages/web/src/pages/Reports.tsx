@@ -742,7 +742,7 @@ function InsightsTab() {
                                   : 'var(--crt-red)',
                             }} />
                           </div>
-                          <span style={{ fontSize: '0.75rem' }}>{(p.confidence * 100).toFixed(0)}%</span>
+                          <span style={{ fontSize: '0.75rem' }}>{((p.confidence ?? 0) * 100).toFixed(0)}%</span>
                         </div>
                       </div>
                     </div>

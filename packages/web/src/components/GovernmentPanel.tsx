@@ -29,7 +29,7 @@ export function GovernmentPanel({ gov }: { gov: GovData }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', fontSize: '0.75rem' }}>
         <div>
           <div style={{ color: 'var(--crt-text-dim)' }}>REGULATION</div>
-          <div style={{ fontSize: '1rem' }}>{(gov.safety_regulation_level * 100).toFixed(0)}%</div>
+          <div style={{ fontSize: '1rem' }}>{((gov.safety_regulation_level ?? 0) * 100).toFixed(0)}%</div>
         </div>
         <div>
           <div style={{ color: 'var(--crt-text-dim)' }}>NATIONAL.</div>

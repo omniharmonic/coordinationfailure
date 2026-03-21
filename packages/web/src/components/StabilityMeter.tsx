@@ -28,7 +28,7 @@ export function StabilityMeter({ stability = 0 }: { stability: number }) {
         letterSpacing: '1px',
         animation: stability < 30 ? 'blink 1s step-end infinite' : 'none',
       }}>
-        {stability.toFixed(0)}% {label}
+        {(stability ?? 0).toFixed(0)}% {label}
       </span>
     </div>
   );

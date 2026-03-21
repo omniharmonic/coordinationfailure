@@ -1,28 +1,36 @@
 import { v4 as uuid } from 'uuid';
-import { PlayerDb, type DbPlayer } from '../persistence/db-stores.js';
+import { db } from '../persistence/index.js';
 
-export type Player = DbPlayer;
+export interface Player {
+  id: string;
+  token: string;
+  handle: string;
+  email?: string;
+  elo: number;
+  games_played: number;
+  wins: number;
+  created_at: string;
+}
 
 /**
- * Player store backed by SQLite.
- * Players persist across server restarts.
+ * Player store backed by unified persistence (Postgres or SQLite).
  */
 export class PlayerStore {
-  constructor() {
-    const count = PlayerDb.count();
+  async init() {
+    const count = await db.players.count();
     if (count > 0) console.log(`[CF] ${count} players in database`);
   }
 
-  register(handle?: string, email?: string): Player {
+  async register(handle?: string, email?: string): Promise<Player> {
     const finalHandle = handle ?? `player_${Math.random().toString(36).slice(2, 8)}`;
-    return PlayerDb.register(uuid(), uuid(), finalHandle, email);
+    return db.players.register(uuid(), uuid(), finalHandle, email);
   }
 
-  getByToken(token: string): Player | undefined {
-    return PlayerDb.getByToken(token);
+  async getByToken(token: string): Promise<Player | undefined> {
+    return db.players.getByToken(token);
   }
 
-  getById(id: string): Player | undefined {
-    return PlayerDb.getById(id);
+  async getById(id: string): Promise<Player | undefined> {
+    return db.players.getById(id);
   }
 }

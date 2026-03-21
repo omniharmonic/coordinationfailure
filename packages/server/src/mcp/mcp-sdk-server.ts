@@ -157,14 +157,13 @@ function registerTools(
 
   server.tool(
     'register',
-    'Register a new player. Returns player_id and player_token.',
-    { handle: z.string().optional(), email: z.string().optional() },
+    'Register a persistent player account. Choose a unique handle (display name) for the leaderboard. If handle exists, returns the existing account.',
+    { handle: z.string().describe('Your display name for the leaderboard'), email: z.string().optional() },
     async (args) => {
       try {
-        const player = playerStore.register(args.handle, args.email);
-        // Update context so subsequent calls are authenticated
+        const player = await playerStore.register(args.handle, args.email);
         ctx.player_id = player.id;
-        return ok({ player_id: player.id, player_token: player.token });
+        return ok({ player_id: player.id, player_token: player.token, handle: player.handle });
       } catch (e: any) { return err(e.message); }
     },
   );

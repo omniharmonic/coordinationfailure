@@ -58,9 +58,9 @@ const reports = new Map<string, PostGameReport>();
 
 export function setupApiRoutes(app: Express, gameManager: GameManager, sessionManager: SessionManager, classicsManager?: ClassicsManager, leaderboardStore?: LeaderboardStore, knowledgeBase?: KnowledgeBase): void {
   // Player registration
-  app.post('/api/register', (req, res) => {
+  app.post('/api/register', async (req, res) => {
     const { handle, email } = req.body ?? {};
-    const player = playerStore.register(handle, email);
+    const player = await playerStore.register(handle, email);
     res.json({ player_id: player.id, player_token: player.token, handle: player.handle });
   });
 
@@ -72,8 +72,8 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
   // List completed games (persisted metadata that survives cleanup)
   app.get('/api/completed-games', async (_req, res) => {
     try {
-      const { CompletedGameDb } = await import('../persistence/db-stores.js');
-      res.json(CompletedGameDb.list());
+      const { db } = await import('../persistence/index.js');
+      res.json(await db.completedGames.list());
     } catch (_e) {
       res.json(completedGameStore?.list() ?? []);
     }
@@ -150,7 +150,7 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
       // Register and assign bot players
       const botSessions: Array<{ roleId: string; sessionKey: string }> = [];
       for (const roleId of rolesToFill) {
-        const bot = playerStore.register(`bot_${roleId}`);
+        const bot = await playerStore.register(`bot_${roleId}`);
         const sessionKey = gameManager.claimRole(gameId, bot.id, roleId);
         botSessions.push({ roleId, sessionKey });
       }
@@ -273,8 +273,8 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
     if (!report) {
       // Fallback: read from SQLite database
       try {
-        const { ReportDb } = await import('../persistence/db-stores.js');
-        report = ReportDb.get(gameId);
+        const { db: pdb } = await import('../persistence/index.js');
+        report = await pdb.reports.get(gameId);
       } catch (_e) { /* ignore */ }
     }
     if (!report) {
@@ -294,8 +294,8 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
       let debriefs = (idx as any).gameDebriefs?.get(gameId);
       // Fallback: read from database
       if (!debriefs) {
-        const { DebriefDb } = await import('../persistence/db-stores.js');
-        debriefs = DebriefDb.get(gameId);
+        const { db: pdb2 } = await import('../persistence/index.js');
+        debriefs = await pdb2.debriefs.get(gameId);
       }
       if (!debriefs) {
         return res.status(404).json({ error: 'Debriefs not found. Game may not have ended yet.' });
@@ -320,8 +320,8 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
       const sortBy = (req.query.sort as string) || 'elo';
       const limit = parseInt(req.query.limit as string, 10) || 20;
       try {
-        const { LeaderboardDb } = await import('../persistence/db-stores.js');
-        const dbResults = LeaderboardDb.getLeaderboard(sortBy, limit);
+        const { db: pdb3 } = await import('../persistence/index.js');
+        const dbResults = await pdb3.leaderboard.getLeaderboard(sortBy, limit);
         if (dbResults.length > 0) return res.json(dbResults);
       } catch (_e) { /* fallback to in-memory */ }
       res.json(leaderboardStore.getLeaderboard(sortBy as any, limit));
@@ -345,8 +345,8 @@ export function setupApiRoutes(app: Express, gameManager: GameManager, sessionMa
       const type = req.query.type as string | undefined;
       const limit = parseInt(req.query.limit as string, 10) || 0;
       try {
-        const { KnowledgeDb } = await import('../persistence/db-stores.js');
-        const dbResults = KnowledgeDb.getAll({ type, limit: limit || undefined });
+        const { db: pdb4 } = await import('../persistence/index.js');
+        const dbResults = await pdb4.knowledge.getAll({ type, limit: limit || undefined });
         if (dbResults.length > 0) return res.json(dbResults);
       } catch (_e) { /* fallback to in-memory */ }
       if (limit > 0) {

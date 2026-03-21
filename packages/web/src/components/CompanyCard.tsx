@@ -70,7 +70,7 @@ export function CompanyCard({ company }: { company: CompanyData }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '2px' }}>
             <span>SAFETY ALLOC</span>
-            <span>{(company.safety_allocation * 100)?.toFixed(0)}%</span>
+            <span>{((company.safety_allocation ?? 0) * 100)?.toFixed(0)}%</span>
           </div>
           <Bar value={company.safety_allocation * 100} color="bar-green" />
         </div>

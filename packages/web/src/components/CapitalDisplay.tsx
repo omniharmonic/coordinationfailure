@@ -50,7 +50,7 @@ export function CapitalDisplay({ companies, marketSentiment }: CapitalDisplayPro
       }}>
         <div>
           <span style={{ color: 'var(--crt-text-dim)' }}>TOTAL POOL: </span>
-          <span>${totalPool?.toFixed(0)}B</span>
+          <span>${(totalPool ?? 0).toFixed(0)}B</span>
         </div>
         <div>
           <span style={{ color: 'var(--crt-text-dim)' }}>SENTIMENT: </span>

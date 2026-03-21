@@ -146,7 +146,7 @@ export function ClassicsSpectator({ gameId, gameType, onBack }: {
                     <span style={{ letterSpacing: '2px' }}>
                       {idx === 0 ? '>> ' : '   '}{playerId.slice(0, 12).toUpperCase()}
                     </span>
-                    <span style={{ fontWeight: 'bold' }}>{(score as number).toFixed(1)} PTS</span>
+                    <span style={{ fontWeight: 'bold' }}>{((score ?? 0) as number).toFixed(1)} PTS</span>
                   </div>
                 ))}
             </div>

@@ -20,7 +20,27 @@ export class GameManager {
   private gameEndCallbacks: Array<(gameId: string, state: GameState, events: GameEvent[]) => void> = [];
   public readonly gameLogger = new GameLogger();
 
-  constructor(private sessionManager: SessionManager) {}
+  constructor(private sessionManager: SessionManager) {
+    // Clean up stale lobbies every 60 seconds
+    setInterval(() => this.cleanStaleLobbles(), 60_000);
+  }
+
+  /** Remove lobbies older than 10 minutes that haven't started */
+  private cleanStaleLobbles(): void {
+    const now = Date.now();
+    const TEN_MINUTES = 10 * 60 * 1000;
+    for (const [id, lobby] of this.lobbies) {
+      if (now - lobby.created_at.getTime() > TEN_MINUTES) {
+        console.log(`[CF] Cleaning stale lobby ${id.slice(0, 8)} (${lobby.players.size} players, age ${Math.round((now - lobby.created_at.getTime()) / 60000)}min)`);
+        // Release any claimed sessions
+        const sessions = this.sessionManager.getSessionsForGame(id);
+        for (const s of sessions) {
+          this.sessionManager.releaseSession(s.session_key);
+        }
+        this.lobbies.delete(id);
+      }
+    }
+  }
 
   /** Register a callback that fires when ANY game ends */
   onGameEnd(callback: (gameId: string, state: GameState, events: GameEvent[]) => void): void {

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
@@ -30,12 +31,11 @@ export const classicsManager = new ClassicsManager();
 export const leaderboardStore = new LeaderboardStore();
 export const knowledgeBase = new KnowledgeBase();
 
-// Database-backed persistence
-import { getDb, closeDb } from './persistence/database.js';
-import { CompletedGameDb, ReportDb, DebriefDb, LeaderboardDb, KnowledgeDb } from './persistence/db-stores.js';
+// Unified persistence (Postgres when DATABASE_URL set, else SQLite)
+import { initDb, closeAllDb, db } from './persistence/index.js';
 
 // Initialize database on startup
-getDb();
+initDb().catch(e => console.error('[CF] Database init error:', e));
 
 // Register game-end callback for leaderboard + analysis on ALL games
 import { classifyStrategy } from './analysis/strategy-classifier.js';
@@ -49,7 +49,7 @@ const gameReports = new Map<string, any>();
 const gameDebriefs = new Map<string, AgentDebrief[]>();
 
 
-gameManager.onGameEnd((gameId, state, events) => {
+gameManager.onGameEnd(async (gameId, state, events) => {
   try {
     const gameOverEvent = events.find(e => e.type === 'game_over');
     if (!gameOverEvent || gameOverEvent.type !== 'game_over') return;
@@ -57,17 +57,17 @@ gameManager.onGameEnd((gameId, state, events) => {
     // Record leaderboard entries for all players (database)
     const sessions = sessionManager.getSessionsForGame(gameId);
     for (const session of sessions) {
-      const player = playerStore.getById(session.player_id);
+      const player = await playerStore.getById(session.player_id);
       const handle = player?.handle ?? session.player_id;
       const score = gameOverEvent.scores[session.role_id] ?? 0;
       // Write to database
-      LeaderboardDb.record(session.player_id, handle, session.role_id, score, gameOverEvent.outcome, gameId);
+      db.leaderboard.record(session.player_id, handle, session.role_id, score, gameOverEvent.outcome, gameId);
       // Also write to in-memory store for backward compat
       leaderboardStore.recordGameResult(session.player_id, handle, session.role_id, score, gameOverEvent.outcome, gameId);
     }
 
     // Persist completed game metadata (database)
-    CompletedGameDb.add({
+    db.completedGames.add({
       game_id: gameId,
       outcome: gameOverEvent.outcome,
       tick_count: state.world?.tick_count ?? 0,
@@ -89,18 +89,18 @@ gameManager.onGameEnd((gameId, state, events) => {
       }
       const report = generatePostGameReport(gameId, log, summary, strategies);
       gameReports.set(gameId, report);
-      ReportDb.save(gameId, report);
+      db.reports.save(gameId, report);
       knowledgeBase.extractPatternsFromGame(report, gameId);
 
       // Save knowledge patterns to database
       for (const p of knowledgeBase.getPatterns()) {
-        KnowledgeDb.upsert(p);
+        db.knowledge.upsert(p);
       }
 
       // Generate agent debriefs
       const debriefs = generateAgentDebriefs(gameId, log, report);
       gameDebriefs.set(gameId, debriefs);
-      DebriefDb.save(gameId, debriefs);
+      db.debriefs.save(gameId, debriefs);
 
       console.log(`[CF] Game ${gameId.slice(0, 8)} ended: ${gameOverEvent.outcome}. Report generated, ${debriefs.length} debriefs created, knowledge extracted.`);
     }
@@ -358,7 +358,7 @@ function shutdown(signal: string) {
   console.log('[CF] All game tick loops stopped.');
 
   // Close database
-  closeDb();
+  closeAllDb().catch(() => {});
 
   // Close all WebSocket connections
   wss.clients.forEach((ws) => {
