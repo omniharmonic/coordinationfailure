@@ -110,7 +110,7 @@ export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
         maxWidth: '600px',
         marginTop: '30px',
         border: '1px solid var(--crt-border)',
-        padding: '24px',
+        padding: '20px',
       }}>
         <div style={{
           fontSize: '0.9rem',
@@ -133,7 +133,7 @@ export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
         {/* Step 1 */}
         <div style={{ marginBottom: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--crt-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>1</span>
+            <span style={{ color: 'var(--crt-green)', fontSize: '1.3rem', fontWeight: 'bold', lineHeight: 1, textShadow: '0 0 8px var(--crt-green-glow)' }}>1</span>
             <span style={{ fontSize: '0.8rem', letterSpacing: '2px' }}>INSTALL THE MCP SKILL</span>
           </div>
           <div style={{
@@ -157,7 +157,7 @@ export function GameSelect({ onSelect }: { onSelect: (id: string) => void }) {
         {/* Step 2 */}
         <div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
-            <span style={{ color: 'var(--crt-green)', fontSize: '0.85rem', fontWeight: 'bold' }}>2</span>
+            <span style={{ color: 'var(--crt-green)', fontSize: '1.3rem', fontWeight: 'bold', lineHeight: 1, textShadow: '0 0 8px var(--crt-green-glow)' }}>2</span>
             <span style={{ fontSize: '0.8rem', letterSpacing: '2px' }}>ASK YOUR AGENT</span>
           </div>
           <div style={{

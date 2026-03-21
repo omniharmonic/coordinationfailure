@@ -32,10 +32,18 @@ export function CompanyCard({ company }: { company: CompanyData }) {
     ? company.alignment_score / company.capability_level
     : 1;
 
+  // Left border color based on alignment health
+  const alignBorderColor = alignmentRisk >= 1.0
+    ? 'var(--crt-green)'       // align > cap: safe
+    : alignmentRisk >= 0.7
+    ? 'var(--crt-amber)'       // close: warning
+    : 'var(--crt-red)';        // cap >> align: danger
+
   return (
     <div className="panel" style={{
       opacity: isOnline ? 1 : 0.6,
       borderColor: alignmentRisk < 0.5 ? 'var(--crt-red-dim)' : 'var(--crt-border)',
+      borderLeft: `3px solid ${alignBorderColor}`,
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <span style={{ fontSize: '0.95rem', letterSpacing: '2px' }}>
@@ -52,7 +60,7 @@ export function CompanyCard({ company }: { company: CompanyData }) {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '2px' }}>
             <span>CAPABILITY</span>
             <span>{company.capability_level?.toFixed(1)}</span>
           </div>
@@ -60,7 +68,7 @@ export function CompanyCard({ company }: { company: CompanyData }) {
         </div>
 
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '2px' }}>
             <span>ALIGNMENT</span>
             <span>{company.alignment_score?.toFixed(1)}</span>
           </div>
@@ -68,7 +76,7 @@ export function CompanyCard({ company }: { company: CompanyData }) {
         </div>
 
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', marginBottom: '2px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '2px' }}>
             <span>SAFETY ALLOC</span>
             <span>{((company.safety_allocation ?? 0) * 100)?.toFixed(0)}%</span>
           </div>

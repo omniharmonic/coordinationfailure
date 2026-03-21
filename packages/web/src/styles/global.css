@@ -241,103 +241,61 @@ input:focus-visible,
 
 /* === Responsive Layout — Mobile (<768px) === */
 @media (max-width: 768px) {
-  body {
-    font-size: 13px;
-    line-height: 1.3;
-  }
-
   html, body, #root {
     overflow: auto;
   }
 
+  body {
+    font-size: 14px;
+  }
+
   h1 { font-size: 1.5rem; }
   h2 { font-size: 1.1rem; }
-  h3 { font-size: 0.95rem; }
 
-  /* Stack game board vertically instead of side-by-side */
-  .game-board, .spectator-grid {
-    display: flex !important;
-    flex-direction: column !important;
+  /* Spectator: stack US/China vertically */
+  .spectator-grid {
     grid-template-columns: 1fr !important;
   }
 
-  /* Bottom panels: stack vertically instead of 3-column */
-  .bottom-panels, .info-panels {
-    display: flex !important;
-    flex-direction: column !important;
+  /* Company cards: single column */
+  .company-grid {
     grid-template-columns: 1fr !important;
   }
 
-  /* Company cards: single column instead of 2x2 grid */
-  .company-grid, .companies-grid {
-    display: flex !important;
-    flex-direction: column !important;
+  /* Bottom panels: stack vertically */
+  .bottom-panels {
     grid-template-columns: 1fr !important;
+    max-height: none !important;
+    height: auto !important;
   }
 
-  /* Reduce header info density */
-  .header-info, .game-header {
+  /* Header: wrap items */
+  .spectator-header {
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
     font-size: 0.75rem;
+    padding: 6px 10px !important;
   }
 
-  .header-info > *, .game-header > * {
-    flex-shrink: 1;
-    min-width: 0;
-  }
-
-  /* Reduce panel padding */
-  .panel {
-    padding: 8px;
-  }
-
-  .panel-header {
-    font-size: 0.75rem;
-    letter-spacing: 1px;
-    margin-bottom: 4px;
-    padding-bottom: 2px;
-  }
-
-  /* Bar containers slightly smaller */
-  .bar-container {
-    height: 10px;
-  }
-
-  /* Government panels — stack controls */
+  /* Government panels — 2x2 on mobile */
   .gov-controls {
-    flex-direction: column;
+    grid-template-columns: 1fr 1fr !important;
   }
 
-  /* Event ticker compact */
-  .event-ticker {
-    max-height: 120px;
-    font-size: 0.75rem;
-  }
-
-  /* Chat panel compact */
-  .chat-panel {
-    max-height: 200px;
-  }
-
-  /* Agreements panel compact */
-  .agreements-panel {
-    max-height: 200px;
-  }
+  .panel { padding: 8px; }
+  .panel-header { font-size: 0.75rem; letter-spacing: 1px; }
+  .bar-container { height: 10px; }
 }
 
 /* === Very small screens (<480px) === */
 @media (max-width: 480px) {
-  body {
-    font-size: 12px;
-  }
-
+  body { font-size: 12px; }
   h1 { font-size: 1.2rem; }
-  h2 { font-size: 1rem; }
-  h3 { font-size: 0.85rem; }
+  h2 { font-size: 0.95rem; }
+  .panel { padding: 6px; }
 
-  .panel {
-    padding: 6px;
+  .spectator-header > div {
+    gap: 4px !important;
   }
 }
 

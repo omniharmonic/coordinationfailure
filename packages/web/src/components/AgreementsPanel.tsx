@@ -17,7 +17,7 @@ export function AgreementsPanel({ agreements }: { agreements: Agreement[] }) {
   };
 
   return (
-    <div className="panel" style={{
+    <div className="panel agreements-panel" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',

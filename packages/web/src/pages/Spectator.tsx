@@ -216,7 +216,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
       '--crt-glow': `var(--crt-${themeColor}-glow)`,
     } as React.CSSProperties}>
       {/* Header */}
-      <div style={{
+      <div className="spectator-header" style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -240,7 +240,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
           </button>
           <span style={{ letterSpacing: '3px', fontSize: '1.1rem' }}>COORDINATION FAILURE</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px', fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '0.85rem', flexWrap: 'wrap' }}>
           <span>DATE: {state.world.in_game_date}</span>
           <span>TICK: {state.world.tick_count}</span>
           <span>SENTIMENT: {(state.world.capital_market_sentiment ?? 0).toFixed(0)}%</span>
@@ -250,7 +250,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
       </div>
 
       {/* Main game board */}
-      <div className={glitchClass} style={{
+      <div className={`spectator-grid ${glitchClass}`} style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: '2px',
@@ -263,7 +263,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
             UNITED STATES
           </div>
           {usGov && <GovernmentPanel gov={usGov} />}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div className="company-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {usCompanies.map((c: any) => (
               <CompanyCard key={c.id} company={c} />
             ))}
@@ -276,7 +276,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
             CHINA
           </div>
           {chinaGov && <GovernmentPanel gov={chinaGov} />}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div className="company-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {chinaCompanies.map((c: any) => (
               <CompanyCard key={c.id} company={c} />
             ))}
@@ -290,7 +290,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
       </div>
 
       {/* Bottom bar: Chat | Agreements | Event Ticker */}
-      <div style={{
+      <div className="bottom-panels" style={{
         display: 'grid',
         gridTemplateColumns: '1fr 1fr 1fr',
         gap: '2px',
@@ -476,15 +476,24 @@ function EventTickerVertical({ events, gameEvents }: { events: any[]; gameEvents
           <div
             key={event.id}
             style={{
-              padding: '2px 0',
+              padding: '3px 0',
               borderBottom: '1px solid var(--crt-border)',
               color: TIER_COLORS[event.tier] ?? 'var(--crt-text)',
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '6px',
             }}
           >
-            <span style={{ letterSpacing: '1px' }}>
-              [{TIER_LABELS[event.tier] ?? event.tier?.toUpperCase()}]
-            </span>{' '}
-            {event.title}
+            <span style={{
+              letterSpacing: '1px',
+              fontSize: '0.65rem',
+              padding: '1px 4px',
+              border: `1px solid ${TIER_COLORS[event.tier] ?? 'var(--crt-text-dim)'}`,
+              flexShrink: 0,
+            }}>
+              {TIER_LABELS[event.tier] ?? event.tier?.toUpperCase()}
+            </span>
+            <span>{event.title}</span>
           </div>
         ))
       )}

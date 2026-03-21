@@ -44,7 +44,7 @@ export function ChatPanel({ gameId }: { gameId: string }) {
   };
 
   return (
-    <div className="panel" style={{
+    <div className="panel chat-panel" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
