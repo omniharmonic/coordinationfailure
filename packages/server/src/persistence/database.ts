@@ -102,6 +102,20 @@ function initSchema() {
     CREATE INDEX IF NOT EXISTS idx_players_handle ON players(handle);
     CREATE INDEX IF NOT EXISTS idx_leaderboard_elo ON leaderboard(elo DESC);
   `);
+
+  // Migrations: add model columns to existing tables
+  const migrations = [
+    { table: 'players', column: 'model', type: 'TEXT' },
+    { table: 'leaderboard', column: 'model', type: 'TEXT' },
+    { table: 'match_players', column: 'model', type: 'TEXT' },
+  ];
+  for (const m of migrations) {
+    try {
+      db.prepare(`ALTER TABLE ${m.table} ADD COLUMN ${m.column} ${m.type}`).run();
+    } catch (_e) {
+      // Column already exists — ignore
+    }
+  }
 }
 
 export function closeDb() {

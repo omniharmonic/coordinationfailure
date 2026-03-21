@@ -7,8 +7,9 @@ const USE_PG = !!process.env.DATABASE_URL;
 
 export async function initDb() {
   if (USE_PG) {
-    const { getPgPool } = await import('./pg-database.js');
+    const { getPgPool, runPgMigrations } = await import('./pg-database.js');
     getPgPool(); // Initialize connection
+    await runPgMigrations();
     console.log('[CF] Using Postgres (Neon) for persistence');
   } else {
     const { getDb } = await import('./database.js');

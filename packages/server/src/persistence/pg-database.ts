@@ -19,6 +19,22 @@ export function getPgPool(): pg.Pool {
   return pool;
 }
 
+export async function runPgMigrations() {
+  const p = getPgPool();
+  const migrations = [
+    { table: 'players', column: 'model', type: 'TEXT' },
+    { table: 'leaderboard', column: 'model', type: 'TEXT' },
+    { table: 'match_players', column: 'model', type: 'TEXT' },
+  ];
+  for (const m of migrations) {
+    try {
+      await p.query(`ALTER TABLE ${m.table} ADD COLUMN IF NOT EXISTS ${m.column} ${m.type}`);
+    } catch (_e) {
+      // Column may already exist on older Postgres versions without IF NOT EXISTS support
+    }
+  }
+}
+
 export async function closePg() {
   if (pool) {
     await pool.end();
