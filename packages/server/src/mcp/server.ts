@@ -395,14 +395,29 @@ async function handleToolCall(
         if (p) classicsManager.joinClassicGame(simGame.id, p.id);
       }
 
+      const comms2 = simGame.config.allow_communication;
+      const isSch = gameType2 === 'schelling_point';
       return {
         game_id: simGame.id,
         game_type: gameType2,
         phase: simGame.phase,
         total_rounds: simGame.total_rounds,
-        allow_communication: simGame.config.allow_communication,
-        players,
-        instructions: `Game ready. Pass player_token to all tool calls to act as each agent independently.`,
+        allow_communication: comms2,
+        players: players.map(p => ({
+          handle: p.handle,
+          player_token: p.player_token,
+          prompt: [
+            `You are ${p.handle} playing ${gameType2.replace(/_/g, ' ')}.`,
+            `GAME: ${simGame.id} | ROUNDS: ${simGame.total_rounds}`,
+            'TOOLS (use EXACT names):',
+            `  get_classic_state(game_id="${simGame.id}", player_token="${p.player_token}")`,
+            comms2 ? `  classic_send_message(game_id="${simGame.id}", content="MSG", player_token="${p.player_token}")` : '',
+            `  submit_choice(game_id="${simGame.id}", choice="CHOICE"${isSch ? ', reasoning="WHY"' : ''}, player_token="${p.player_token}")`,
+            'Do NOT use send_message/get_messages (wrong game mode).',
+            comms2 ? 'CHAT IS MANDATORY every round before submitting.' : '',
+          ].filter(Boolean).join('\n'),
+        })),
+        how_to_run: 'Spawn one subagent per player in parallel. Give each ONLY its own prompt.',
       };
     }
 

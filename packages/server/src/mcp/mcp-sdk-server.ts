@@ -804,45 +804,63 @@ function registerTools(
           classicsManager.joinClassicGame(game.id, players[i].player_id);
         }
 
+        // Build per-player subagent prompts with all values pre-filled
+        const comms = game.config.allow_communication;
+        const isSchelling = gameType === 'schelling_point';
+        const validChoices = isSchelling ? '"row,col" (e.g. "3,5")'
+          : gameType === 'tragedy_of_commons' ? 'a number 0.0 to 1.0'
+          : gameType === 'prisoners_dilemma' ? '"cooperate" or "defect"'
+          : '"stag" or "hare"';
+
+        const agentPrompts = players.map((p, i) => {
+          const strategyNames: Record<string, string[]> = {
+            prisoners_dilemma: ['Tit-for-Tat (cooperate first, then mirror opponent)', 'Generous (cooperate first, mostly mirror but forgive 20% of defections)'],
+            stag_hunt: ['Optimist (always choose stag, trust the group)', 'Cautious (stag if everyone chose stag last round, otherwise hare)'],
+            tragedy_of_commons: ['Conservationist (extract 0.2-0.3, urge restraint)', 'Moderate (extract 0.4-0.5, adjust based on resource level)'],
+            schelling_point: ['Landmark-first (pick the most unique landmark: train station > church > hospital)', 'Center-biased (prefer landmarks closest to the center of the map)'],
+          };
+          const strategies = strategyNames[gameType] ?? ['Play strategically'];
+          const strategy = strategies[i % strategies.length];
+
+          const lines = [
+            `You are ${p.handle} playing ${gameType.replace(/_/g, ' ')} in Coordination Failure.`,
+            `Your strategy: ${strategy}.`,
+            '',
+            `GAME: ${game.id} | ROUNDS: ${game.total_rounds} | CHOICE: ${validChoices}`,
+            '',
+            'YOUR TOOL CALLS (use these EXACT names and parameters):',
+            '',
+            `  get_classic_state(game_id="${game.id}", player_token="${p.player_token}")`,
+            comms ? `  classic_get_messages(game_id="${game.id}", player_token="${p.player_token}")` : '',
+            comms ? `  classic_send_message(game_id="${game.id}", content="YOUR MESSAGE", player_token="${p.player_token}")` : '',
+            `  submit_choice(game_id="${game.id}", choice="YOUR_CHOICE"${isSchelling ? ', reasoning="YOUR REASONING"' : ''}, player_token="${p.player_token}")`,
+            '',
+            'WARNING: Do NOT use send_message or get_messages (those are for a different game mode).',
+            `Only use the tool names listed above. Always include player_token="${p.player_token}".`,
+            '',
+            'EACH ROUND:',
+            '  1. Call get_classic_state — check current_round and phase',
+            '  2. If phase is "complete", stop immediately',
+            '  3. If has_submitted is true, sleep 3 seconds and go to step 1 (waiting for opponent)',
+            comms ? '  4. Call classic_get_messages to see what opponent said' : '',
+            comms ? '  5. Call classic_send_message with a strategic message (MANDATORY every round)' : '',
+            `  ${comms ? '6' : '4'}. Call submit_choice with your decision`,
+            `  ${comms ? '7' : '5'}. Go to step 1`,
+            '',
+            comms ? 'CHAT IS MANDATORY. Every round, send a message BEFORE submitting your choice. Discuss strategy, react to history, propose agreements, call out betrayals. Be specific and in-character.' : '',
+            isSchelling ? 'Include reasoning="..." explaining why you chose that cell. Study the board for unique landmarks (T=train station, C=church, H=hospital, S=school). Train stations are the classic Schelling focal point.' : '',
+          ].filter(Boolean).join('\n');
+          return { handle: p.handle, player_token: p.player_token, prompt: lines };
+        });
+
         return ok({
           game_id: game.id,
           game_type: gameType,
           phase: game.phase,
           total_rounds: game.total_rounds,
-          allow_communication: game.config.allow_communication,
-          players: players.map(p => ({
-            handle: p.handle,
-            player_token: p.player_token,
-          })),
-          instructions: [
-            `Game "${gameType}" is ready with ${numPlayers} players (phase: ${game.phase}).`,
-            'Each player has a unique player_token. Pass it to ALL classic game tools.',
-            '',
-            'EACH AGENT\'S GAME LOOP (repeat every round):',
-            `  1. get_classic_state(game_id="${game.id}", player_token=TOKEN)`,
-            game.config.allow_communication
-              ? `  2. classic_get_messages(game_id="${game.id}", player_token=TOKEN) — read opponent messages`
-              : '',
-            game.config.allow_communication
-              ? `  3. classic_send_message(game_id="${game.id}", content="your strategy/thoughts", player_token=TOKEN) — ALWAYS send a message before choosing`
-              : '',
-            `  ${game.config.allow_communication ? '4' : '2'}. submit_choice(game_id="${game.id}", choice=CHOICE, player_token=TOKEN)`,
-            gameType === 'schelling_point'
-              ? '     Include reasoning="..." to explain your focal-point analysis'
-              : '',
-            `  ${game.config.allow_communication ? '5' : '3'}. Wait for round to resolve, then repeat`,
-            '',
-            game.config.allow_communication
-              ? 'COMMUNICATION IS ON: Agents MUST chat each round — discuss strategy, react to betrayals, negotiate. This is what makes the simulation interesting to watch.'
-              : 'COMMUNICATION IS OFF: Agents decide independently with no messaging.',
-            '',
-            'TIMING: Both agents run concurrently. After submitting, poll get_classic_state',
-            'every 2-3 seconds until the round resolves (current_round advances). Do NOT',
-            'resubmit — if you get "already submitted", just wait and poll. If has_submitted',
-            'is true and waiting_on > 0, the other agent has not submitted yet.',
-            '',
-            'IMPORTANT: Each agent should decide INDEPENDENTLY. Give each subagent ONLY its own player_token.',
-          ].filter(Boolean).join('\n'),
+          allow_communication: comms,
+          players: agentPrompts,
+          how_to_run: 'Spawn one subagent per player IN PARALLEL. Give each subagent ONLY its own prompt. Do not share information between them.',
         });
       } catch (e: any) { return err(e.message); }
     },
