@@ -118,6 +118,15 @@ export function setupMcpRoutes(app: Express, gameManager: GameManager, sessionMa
   });
 }
 
+async function resolvePlayer(params: Record<string, any>, auth: AuthContext): Promise<string> {
+  if (params.player_token) {
+    const player = await playerStore.getByToken(params.player_token);
+    if (!player) throw new Error('Invalid player_token');
+    return player.id;
+  }
+  return auth.player_id;
+}
+
 async function handleToolCall(
   tool: string,
   params: Record<string, any>,
@@ -318,49 +327,79 @@ async function handleToolCall(
 
     case 'join_classic': {
       if (!classicsManager) throw new Error('Classics not enabled');
+      const joinPlayerId = await resolvePlayer(params, auth);
 
       if (params.game_id) {
-        // Join existing game — game_type not required
-        const game = classicsManager.joinClassicGame(params.game_id, auth.player_id);
+        const game = classicsManager.joinClassicGame(params.game_id, joinPlayerId);
         return { game_id: game.id, type: game.type, phase: game.phase, players: game.player_ids.length };
       }
 
-      // Create a new game — game_type required
       const gameType = params.game_type;
       if (!gameType) throw new Error('Missing game_type (required when creating a new game)');
-      const game = classicsManager.createClassicGame(gameType, params.config, auth.player_id);
+      const game = classicsManager.createClassicGame(gameType, params.config, joinPlayerId);
       return { game_id: game.id, type: game.type, phase: game.phase, players: game.player_ids.length };
     }
 
     case 'get_classic_state': {
       if (!classicsManager) throw new Error('Classics not enabled');
-      const classicGameId = params.game_id;
-      if (!classicGameId) throw new Error('Missing game_id');
-      return classicsManager.getClassicState(classicGameId, auth.player_id);
+      if (!params.game_id) throw new Error('Missing game_id');
+      const statePlayerId = await resolvePlayer(params, auth);
+      return classicsManager.getClassicState(params.game_id, statePlayerId);
     }
 
     case 'submit_choice': {
       if (!classicsManager) throw new Error('Classics not enabled');
-      const choiceGameId = params.game_id;
-      if (!choiceGameId) throw new Error('Missing game_id');
+      if (!params.game_id) throw new Error('Missing game_id');
       if (!params.choice) throw new Error('Missing choice');
-      return classicsManager.submitChoice(choiceGameId, auth.player_id, params.choice, params.reasoning);
+      const choicePlayerId = await resolvePlayer(params, auth);
+      return classicsManager.submitChoice(params.game_id, choicePlayerId, params.choice, params.reasoning);
     }
 
     case 'classic_chat':
     case 'classic_send_message': {
       if (!classicsManager) throw new Error('Classics not enabled');
-      const chatGameId = params.game_id;
-      if (!chatGameId) throw new Error('Missing game_id');
+      if (!params.game_id) throw new Error('Missing game_id');
       if (!params.content) throw new Error('Missing content');
-      return classicsManager.sendMessage(chatGameId, auth.player_id, params.content);
+      const chatPlayerId = await resolvePlayer(params, auth);
+      return classicsManager.sendMessage(params.game_id, chatPlayerId, params.content);
     }
 
     case 'classic_get_messages': {
       if (!classicsManager) throw new Error('Classics not enabled');
-      const msgGameId = params.game_id;
-      if (!msgGameId) throw new Error('Missing game_id');
-      return classicsManager.getMessages(msgGameId, auth.player_id);
+      if (!params.game_id) throw new Error('Missing game_id');
+      const msgPlayerId = await resolvePlayer(params, auth);
+      return classicsManager.getMessages(params.game_id, msgPlayerId);
+    }
+
+    case 'setup_simulation': {
+      if (!classicsManager) throw new Error('Classics not enabled');
+      const gameType2 = params.game_type;
+      if (!gameType2) throw new Error('Missing game_type');
+      const numPlayers = params.num_players ?? 2;
+      const agentNames = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'];
+      const players: Array<{ handle: string; player_token: string }> = [];
+
+      for (let i = 0; i < numPlayers; i++) {
+        const handle = `Agent_${agentNames[i]}_${Date.now().toString(36)}`;
+        const player = await playerStore.register(handle, undefined, 'swarm-agent');
+        players.push({ handle, player_token: player.token });
+      }
+
+      const simGame = classicsManager.createClassicGame(gameType2, params.config, (await playerStore.getByToken(players[0].player_token))!.id);
+      for (let i = 1; i < numPlayers; i++) {
+        const p = await playerStore.getByToken(players[i].player_token);
+        if (p) classicsManager.joinClassicGame(simGame.id, p.id);
+      }
+
+      return {
+        game_id: simGame.id,
+        game_type: gameType2,
+        phase: simGame.phase,
+        total_rounds: simGame.total_rounds,
+        allow_communication: simGame.config.allow_communication,
+        players,
+        instructions: `Game ready. Pass player_token to all tool calls to act as each agent independently.`,
+      };
     }
 
     case 'submit_debrief': {
@@ -459,7 +498,8 @@ function getToolList() {
     { name: 'get_classic_state', description: 'Get current state for your classic game', params: { game_id: 'string' } },
     { name: 'submit_choice', description: 'Submit your choice for current round', params: { game_id: 'string', choice: 'string' } },
     { name: 'classic_chat', description: 'Send a message in classic game (if communication enabled)', params: { game_id: 'string', content: 'string' } },
-    { name: 'classic_send_message', description: 'Send a chat message in a classic game (if communication enabled)', params: { game_id: 'string', content: 'string' } },
-    { name: 'classic_get_messages', description: 'Get chat messages from a classic game', params: { game_id: 'string' } },
+    { name: 'classic_send_message', description: 'Send a chat message in a classic game (if communication enabled)', params: { game_id: 'string', content: 'string', player_token: 'string?' } },
+    { name: 'classic_get_messages', description: 'Get chat messages from a classic game', params: { game_id: 'string', player_token: 'string?' } },
+    { name: 'setup_simulation', description: 'Set up a swarm simulation with multiple agents', params: { game_type: 'string', num_players: 'number?', config: 'object?' } },
   ];
 }

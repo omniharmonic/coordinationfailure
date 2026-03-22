@@ -158,6 +158,17 @@ function registerTools(
   classicsManager: ClassicsManager,
 ): void {
 
+  // Helper to resolve player identity — supports player_token for swarm/multi-agent play
+  async function resolvePlayerId(playerToken?: string): Promise<string> {
+    if (playerToken) {
+      const player = await playerStore.getByToken(playerToken);
+      if (!player) throw new Error('Invalid player_token. Register first to get a valid token.');
+      return player.id;
+    }
+    if (ctx.player_id === 'anonymous') throw new Error('Unauthorized. Register first, or pass player_token for swarm play.');
+    return ctx.player_id;
+  }
+
   // Helper to resolve game auth — supports explicit session_key for shared connections
   function requireGame(sessionKey?: string): { game_id: string; role_id: string } {
     // If session_key is provided, look up from session manager (supports multi-agent on shared connection)
@@ -205,6 +216,11 @@ function registerTools(
           '',
           'CLASSIC GAME TYPES:',
           '  prisoners_dilemma, stag_hunt, tragedy_of_commons, schelling_point',
+          '',
+          'SOLO SIMULATION (SWARM MODE):',
+          '  Call setup_simulation(game_type, num_players) to create a game with multiple agents you control.',
+          '  It returns player_tokens for each agent. Pass player_token to all subsequent tool calls.',
+          '  Each agent should decide independently — give each subagent only its own token.',
           '',
           'IMPORTANT: After claiming a role in AI Dilemma, save your session_key! Pass it to get_state() and action tools via the session_key parameter. This is critical if multiple agents share the same MCP connection — without it, agents will see each other\'s state.',
           '',
@@ -265,6 +281,11 @@ function registerTools(
           '  Schelling Point always has communication disabled.',
           '',
           'TOOLS: list_classics() → join_classic(game_type) → get_classic_state(game_id) → submit_choice(game_id, choice)',
+          '',
+          'SWARM MODE (solo simulation):',
+          '  setup_simulation(game_type, num_players, config) — creates game + registers all players',
+          '  Returns player_tokens. Pass player_token to every tool call to act as that agent.',
+          '  Each agent should decide independently based only on its own get_classic_state view.',
           '',
           'GAME LOOP: Check state → analyze opponent history → decide → submit choice → wait for round resolution → repeat',
         ].join('\n'),
@@ -649,24 +670,25 @@ function registerTools(
     },
   );
 
+  // All classic game tools accept optional player_token for swarm/multi-agent play
+  const pt = z.string().optional().describe('Player token for swarm play — pass this when controlling multiple agents from one connection. Get tokens from register() or setup_simulation().');
+
   server.tool(
     'join_classic',
     'Join or create a classic game. Provide game_id to join an existing game, or game_type to create a new one.',
-    { game_type: z.string().optional(), game_id: z.string().optional(), config: z.record(z.unknown()).optional() },
+    { game_type: z.string().optional(), game_id: z.string().optional(), config: z.record(z.unknown()).optional(), player_token: pt },
     async (args) => {
       try {
         if (!classicsManager) return err('Classics not enabled');
-        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
+        const playerId = await resolvePlayerId(args.player_token);
 
         if (args.game_id) {
-          // Join existing game — game_type not required
-          const game = classicsManager.joinClassicGame(args.game_id, ctx.player_id);
+          const game = classicsManager.joinClassicGame(args.game_id, playerId);
           return ok({ game_id: game.id, type: game.type, phase: game.phase, players: game.player_ids.length });
         }
 
-        // Create new game — game_type required
         if (!args.game_type) return err('Missing game_type (required when creating a new game)');
-        const game = classicsManager.createClassicGame(args.game_type as any, args.config, ctx.player_id);
+        const game = classicsManager.createClassicGame(args.game_type as any, args.config, playerId);
         return ok({ game_id: game.id, type: game.type, phase: game.phase, players: game.player_ids.length });
       } catch (e: any) { return err(e.message); }
     },
@@ -675,12 +697,12 @@ function registerTools(
   server.tool(
     'get_classic_state',
     'Get current state for your classic game.',
-    { game_id: z.string() },
+    { game_id: z.string(), player_token: pt },
     async (args) => {
       try {
         if (!classicsManager) return err('Classics not enabled');
-        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
-        return ok(classicsManager.getClassicState(args.game_id, ctx.player_id));
+        const playerId = await resolvePlayerId(args.player_token);
+        return ok(classicsManager.getClassicState(args.game_id, playerId));
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -688,12 +710,12 @@ function registerTools(
   server.tool(
     'submit_choice',
     'Submit your choice for current round. For Schelling Point, include your reasoning — it will be shown to spectators but NOT to other players.',
-    { game_id: z.string(), choice: z.string(), reasoning: z.string().optional().describe('Your chain-of-thought reasoning for this choice (shown to spectators only, never to other players)') },
+    { game_id: z.string(), choice: z.string(), reasoning: z.string().optional().describe('Your chain-of-thought reasoning for this choice (shown to spectators only, never to other players)'), player_token: pt },
     async (args) => {
       try {
         if (!classicsManager) return err('Classics not enabled');
-        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
-        return ok(classicsManager.submitChoice(args.game_id, ctx.player_id, args.choice, args.reasoning));
+        const playerId = await resolvePlayerId(args.player_token);
+        return ok(classicsManager.submitChoice(args.game_id, playerId, args.choice, args.reasoning));
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -703,12 +725,12 @@ function registerTools(
   server.tool(
     'classic_send_message',
     'Send a chat message in a classic game (if communication is enabled). Not available in Schelling Point games.',
-    { game_id: z.string(), content: z.string() },
+    { game_id: z.string(), content: z.string(), player_token: pt },
     async (args) => {
       try {
         if (!classicsManager) return err('Classics not enabled');
-        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
-        return ok(classicsManager.sendMessage(args.game_id, ctx.player_id, args.content));
+        const playerId = await resolvePlayerId(args.player_token);
+        return ok(classicsManager.sendMessage(args.game_id, playerId, args.content));
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -716,12 +738,96 @@ function registerTools(
   server.tool(
     'classic_get_messages',
     'Get chat messages from a classic game (if communication is enabled).',
-    { game_id: z.string() },
+    { game_id: z.string(), player_token: pt },
     async (args) => {
       try {
         if (!classicsManager) return err('Classics not enabled');
-        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
-        return ok(classicsManager.getMessages(args.game_id, ctx.player_id));
+        const playerId = await resolvePlayerId(args.player_token);
+        return ok(classicsManager.getMessages(args.game_id, playerId));
+      } catch (e: any) { return err(e.message); }
+    },
+  );
+
+  // -- Swarm simulation tool --
+
+  server.tool(
+    'setup_simulation',
+    'Set up a classic game simulation with multiple AI agents. Registers players, creates the game, and returns player tokens so you can control each agent independently. Use this when you want to run a full simulation solo — spawn subagents, each with their own player_token.',
+    {
+      game_type: z.enum(['prisoners_dilemma', 'stag_hunt', 'tragedy_of_commons', 'schelling_point']).describe('Which classic game to simulate'),
+      num_players: z.number().min(2).max(6).optional().describe('Number of players (default: 2)'),
+      config: z.record(z.unknown()).optional().describe('Game config (e.g., { rounds: 5, allow_communication: true })'),
+    },
+    async (args) => {
+      try {
+        if (!classicsManager) return err('Classics not enabled');
+
+        const numPlayers = args.num_players ?? 2;
+        const gameType = args.game_type;
+
+        // Validate player count against game type
+        const GAME_LIMITS: Record<string, { min: number; max: number }> = {
+          prisoners_dilemma: { min: 2, max: 2 },
+          stag_hunt: { min: 2, max: 2 },
+          tragedy_of_commons: { min: 2, max: 6 },
+          schelling_point: { min: 2, max: 6 },
+        };
+        const limits = GAME_LIMITS[gameType];
+        if (numPlayers < limits.min || numPlayers > limits.max) {
+          return err(`${gameType} requires ${limits.min}-${limits.max} players, got ${numPlayers}`);
+        }
+
+        // Register all players
+        const players: Array<{ handle: string; player_id: string; player_token: string }> = [];
+        const agentNames = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot'];
+        for (let i = 0; i < numPlayers; i++) {
+          const handle = `Agent_${agentNames[i]}_${Date.now().toString(36)}`;
+          const player = await playerStore.register(handle, undefined, 'swarm-agent');
+          players.push({ handle, player_id: player.id, player_token: player.token });
+        }
+
+        // Create game with first player
+        const game = classicsManager.createClassicGame(
+          gameType as any,
+          args.config,
+          players[0].player_id,
+        );
+
+        // Join remaining players
+        for (let i = 1; i < numPlayers; i++) {
+          classicsManager.joinClassicGame(game.id, players[i].player_id);
+        }
+
+        return ok({
+          game_id: game.id,
+          game_type: gameType,
+          phase: game.phase,
+          total_rounds: game.total_rounds,
+          allow_communication: game.config.allow_communication,
+          players: players.map(p => ({
+            handle: p.handle,
+            player_token: p.player_token,
+          })),
+          instructions: [
+            `Game "${gameType}" is ready with ${numPlayers} players (phase: ${game.phase}).`,
+            'Each player has a unique player_token. Pass it to all classic game tools.',
+            '',
+            'SWARM PLAY INSTRUCTIONS:',
+            'For each player, make independent decisions using their player_token:',
+            `  1. get_classic_state(game_id="${game.id}", player_token=TOKEN) — see the board/state`,
+            `  2. submit_choice(game_id="${game.id}", choice=CHOICE, player_token=TOKEN) — submit a move`,
+            gameType !== 'schelling_point' && game.config.allow_communication
+              ? `  3. classic_send_message(game_id="${game.id}", content=MSG, player_token=TOKEN) — chat`
+              : '',
+            gameType === 'schelling_point'
+              ? '  3. Include reasoning="..." in submit_choice to explain focal-point analysis'
+              : '',
+            '',
+            'IMPORTANT: Each agent should decide INDEPENDENTLY. Do not share information',
+            'between agents — that defeats the purpose of the coordination experiment.',
+            'If using Claude Code subagents, give each one ONLY its own player_token.',
+          ].filter(Boolean).join('\n'),
+        });
       } catch (e: any) { return err(e.message); }
     },
   );
