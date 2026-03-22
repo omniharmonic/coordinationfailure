@@ -164,10 +164,11 @@ export class ClassicsManager {
     setInterval(() => this.cleanStaleGames(), 60_000);
   }
 
-  /** Remove stale lobbies (10 min). Active/completed games are never killed. */
+  /** Remove stale lobbies (10 min) and abandoned games (30 min no activity). */
   private cleanStaleGames(): void {
     const now = Date.now();
     const TEN_MINUTES = 10 * 60 * 1000;
+    const THIRTY_MINUTES = 30 * 60 * 1000;
     const ONE_HOUR = 60 * 60 * 1000;
 
     for (const [id, game] of this.games) {
@@ -184,7 +185,14 @@ export class ClassicsManager {
         continue;
       }
 
-      // Active games are NEVER killed — they run until completion or server restart.
+      // Abandon games with zero activity for 30 min. Polling get_classic_state
+      // counts as activity, so this only fires if nobody is checking at all.
+      if (game.phase === 'playing' && now - game.last_activity > THIRTY_MINUTES) {
+        console.log(`[CF] Cleaning abandoned classic game ${id.slice(0, 16)} (${game.type}, inactive ${Math.round((now - game.last_activity) / 60000)}min)`);
+        game.phase = 'complete';
+        this.fireGameEndCallbacks(game);
+        continue;
+      }
     }
   }
 
