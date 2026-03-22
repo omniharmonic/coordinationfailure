@@ -59,12 +59,14 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
     // Only update state if tick is moving forward (prevents WebSocket delay vs poll race)
-    const updateState = (data: any) => {
+    // Returns true if state was accepted, false if stale
+    const updateState = (data: any): boolean => {
       const tick = data.world?.tick_count ?? -1;
-      if (tick < lastTickRef.current) return; // stale data — discard
+      if (tick < lastTickRef.current) return false; // stale data — discard
       lastTickRef.current = tick;
       hadRunningStateRef.current = true;
       setState(data);
+      return true;
     };
 
     const loadState = async () => {
@@ -119,12 +121,14 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
               markGameOver();
             }
           } else if (msg.type === 'tick' && msg.data?.state?.companies) {
-            updateState(msg.data.state);
-            if (msg.data.state.phase === 'ended') {
-              markGameOver();
-            }
-            if (msg.data.events?.length) {
-              setEvents(prev => [...prev.slice(-50), ...msg.data.events]);
+            const accepted = updateState(msg.data.state);
+            if (accepted) {
+              if (msg.data.state.phase === 'ended') {
+                markGameOver();
+              }
+              if (msg.data.events?.length) {
+                setEvents(prev => [...prev.slice(-50), ...msg.data.events]);
+              }
             }
           }
         } catch (_e) { /* ignore parse errors */ }
