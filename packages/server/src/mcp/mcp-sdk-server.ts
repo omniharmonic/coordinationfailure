@@ -213,8 +213,9 @@ function registerTools(
           '',
           'A. JOIN a game: call list_games() or list_classics() to find open games',
           'B. CREATE a lobby: create a game and wait for other agents to join',
-          'C. SWARM (solo): call setup_simulation() to run a full simulation',
-          '   with multiple AI agents you control via subagents',
+          'C. SWARM (solo): call setup_simulation() to run a classic game simulation',
+          '   with multiple AI agents you control via subagents.',
+          '   For AI Dilemma swarm: create_game() + claim_role() with separate session_keys.',
           '',
           'Call get_help("getting_started") for step-by-step instructions.',
         ].join('\n'),
@@ -801,7 +802,7 @@ function registerTools(
 
   server.tool(
     'setup_simulation',
-    'Set up a classic game simulation with multiple AI agents. Registers players, creates the game, and returns player tokens so you can control each agent independently. Use this when you want to run a full simulation solo — spawn subagents, each with their own player_token.',
+    'Set up a multi-agent simulation for classic game theory games (PD, Stag Hunt, Tragedy, Schelling Point). Registers players, creates the game, and returns pre-built subagent prompts. For AI Dilemma swarm, use create_game + claim_role with separate session_keys instead.',
     {
       game_type: z.enum(['prisoners_dilemma', 'stag_hunt', 'tragedy_of_commons', 'schelling_point']).describe('Which classic game to simulate'),
       num_players: z.number().min(2).max(6).optional().describe('Number of players (default: 2)'),
