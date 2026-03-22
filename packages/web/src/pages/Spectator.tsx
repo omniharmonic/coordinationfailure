@@ -43,7 +43,9 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
     }
   };
   const wsRef = useRef<WebSocket | null>(null);
+  const wsAliveRef = useRef(false);
   const hadRunningStateRef = useRef(false);
+  const lastTickRef = useRef(-1);
 
   // Sound integration
   const { playBeep, playAlert, playKlaxon, playKeyClick } = useSound();
@@ -56,13 +58,24 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
     let wsInstance: WebSocket | null = null;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
 
+    // Only update state if tick is moving forward (prevents WebSocket delay vs poll race)
+    const updateState = (data: any) => {
+      const tick = data.world?.tick_count ?? -1;
+      if (tick < lastTickRef.current) return; // stale data — discard
+      lastTickRef.current = tick;
+      hadRunningStateRef.current = true;
+      setState(data);
+    };
+
     const loadState = async () => {
       // Once game is over, stop fetching to prevent state thrashing
       if (gameOverRef.current) return;
+      // If WebSocket is delivering data, skip polling to avoid time-travel
+      // (WebSocket has a 10s delay; poll returns current state)
+      if (wsAliveRef.current) return;
       try {
         const res = await fetch(`/api/games/${gameId}`);
         if (!res.ok) {
-          // If we previously had a running game and now get 404, game ended
           if (hadRunningStateRef.current && (res.status === 404 || res.status === 410)) {
             markGameOver();
             setLostConnection(true);
@@ -71,18 +84,14 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
         }
         const data = await res.json();
         if (data.phase === 'ended' && data.companies) {
-          hadRunningStateRef.current = true;
-          setState(data);
+          updateState(data);
           markGameOver();
         } else if (data.phase === 'running' && data.companies) {
-          hadRunningStateRef.current = true;
-          setState(data);
+          updateState(data);
         } else if (data.phase === 'lobby') {
-          // Game hasn't started yet — keep polling
           console.log('Game in lobby, waiting for start...');
         }
       } catch (_e) {
-        // Network error — if we had a running game, treat as ended
         if (hadRunningStateRef.current) {
           markGameOver();
           setLostConnection(true);
@@ -101,17 +110,16 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
 
       wsInstance.onmessage = (event) => {
         if (gameOverRef.current) return;
+        wsAliveRef.current = true; // WebSocket is delivering — suppress polling
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'state' && msg.data?.companies) {
-            hadRunningStateRef.current = true;
-            setState(msg.data);
+            updateState(msg.data);
             if (msg.data.phase === 'ended') {
               markGameOver();
             }
           } else if (msg.type === 'tick' && msg.data?.state?.companies) {
-            hadRunningStateRef.current = true;
-            setState(msg.data.state);
+            updateState(msg.data.state);
             if (msg.data.state.phase === 'ended') {
               markGameOver();
             }
@@ -123,7 +131,12 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
       };
 
       wsInstance.onerror = () => {
+        wsAliveRef.current = false; // Fall back to polling
         console.log('WebSocket error — falling back to polling');
+      };
+
+      wsInstance.onclose = () => {
+        wsAliveRef.current = false; // Fall back to polling
       };
     } catch (_e) {
       console.log('WebSocket unavailable — using polling');
