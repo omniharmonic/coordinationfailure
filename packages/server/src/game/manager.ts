@@ -28,9 +28,9 @@ export class GameManager {
   /** Remove lobbies older than 10 minutes that haven't started */
   private cleanStaleLobbles(): void {
     const now = Date.now();
-    const FIVE_MINUTES = 5 * 60 * 1000;
+    const TEN_MINUTES = 10 * 60 * 1000;
     for (const [id, lobby] of this.lobbies) {
-      if (now - lobby.created_at.getTime() > FIVE_MINUTES) {
+      if (now - lobby.created_at.getTime() > TEN_MINUTES) {
         console.log(`[CF] Cleaning stale lobby ${id.slice(0, 8)} (${lobby.players.size} players, age ${Math.round((now - lobby.created_at.getTime()) / 60000)}min)`);
         // Release any claimed sessions
         const sessions = this.sessionManager.getSessionsForGame(id);

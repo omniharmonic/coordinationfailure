@@ -164,37 +164,27 @@ export class ClassicsManager {
     setInterval(() => this.cleanStaleGames(), 60_000);
   }
 
-  /** Remove waiting lobbies (5 min) and truly abandoned playing games (30 min) */
+  /** Remove stale lobbies (10 min). Active/completed games are never killed. */
   private cleanStaleGames(): void {
     const now = Date.now();
-    const FIVE_MINUTES = 5 * 60 * 1000;
-    const THIRTY_MINUTES = 30 * 60 * 1000;
+    const TEN_MINUTES = 10 * 60 * 1000;
     const ONE_HOUR = 60 * 60 * 1000;
 
     for (const [id, game] of this.games) {
-      if (game.phase === 'complete') {
-        // Remove completed games after 1 hour to free memory
-        if (now - game.last_activity > ONE_HOUR) {
-          this.games.delete(id);
-        }
+      // Free memory for completed games after 1 hour
+      if (game.phase === 'complete' && now - game.last_activity > ONE_HOUR) {
+        this.games.delete(id);
         continue;
       }
 
-      if (game.phase === 'waiting' && now - game.created_at.getTime() > FIVE_MINUTES) {
+      // Remove waiting lobbies that never started
+      if (game.phase === 'waiting' && now - game.created_at.getTime() > TEN_MINUTES) {
         console.log(`[CF] Cleaning stale classic lobby ${id.slice(0, 16)} (${game.type}, age ${Math.round((now - game.created_at.getTime()) / 60000)}min)`);
         this.games.delete(id);
         continue;
       }
 
-      // Playing games: only clean up after 30 min of NO activity at all.
-      // Swarm agents can take 10-20 min per round due to LLM thinking time,
-      // polling, and subagent scheduling. 10 min was way too aggressive.
-      if (game.phase === 'playing' && now - game.last_activity > THIRTY_MINUTES) {
-        console.log(`[CF] Cleaning abandoned classic game ${id.slice(0, 16)} (${game.type}, inactive ${Math.round((now - game.last_activity) / 60000)}min)`);
-        game.phase = 'complete';
-        this.fireGameEndCallbacks(game);
-        continue;
-      }
+      // Active games are NEVER killed — they run until completion or server restart.
     }
   }
 
