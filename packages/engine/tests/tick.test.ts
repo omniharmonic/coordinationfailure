@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { createInitialState, tick } from '../src/tick.js';
 import { createDefaultConfig } from '../src/config.js';
+import { computeAgreementScore } from '../src/conditions.js';
+import type { Agreement, AgreementType, GameState } from '../src/state.js';
 
 describe('createInitialState', () => {
   it('creates state with all 8 roles', () => {
@@ -213,5 +215,125 @@ describe('tick', () => {
     });
 
     expect(result2.new_state.governments.us_gov.nationalization_status).toBe('info_sharing');
+  });
+});
+
+describe('computeAgreementScore', () => {
+  function makeAgreement(type: AgreementType, parties: string[], terms: Record<string, unknown> = {}): Agreement {
+    return {
+      id: `agr_test_${Math.random().toString(36).slice(2, 8)}`,
+      type,
+      parties,
+      terms,
+      proposed_by: parties[0],
+      proposed_at_tick: 1,
+      activated_at_tick: 2,
+      status: 'active',
+      pending_acceptances: [],
+      duration_ticks: null,
+      withdrawal_notice_ticks: 3,
+      withdrawing_parties: new Map(),
+    };
+  }
+
+  function stateWith(agreements: Agreement[]): GameState {
+    const config = createDefaultConfig();
+    const state = createInitialState('score-test', config);
+    state.agreements = agreements;
+    return state;
+  }
+
+  it('scores enforced agreements higher than symbolic', () => {
+    const enforced = stateWith([makeAgreement('safety_pact', ['openbrain', 'prometheus'])]);
+    const symbolic = stateWith([makeAgreement('capital_alliance', ['openbrain', 'prometheus'])]);
+
+    const enforcedScore = computeAgreementScore('openbrain', 'company', enforced);
+    const symbolicScore = computeAgreementScore('openbrain', 'company', symbolic);
+
+    expect(enforcedScore).toBe(12);
+    expect(symbolicScore).toBe(3);
+  });
+
+  it('applies diminishing returns on same type', () => {
+    const agreements = [
+      makeAgreement('capital_alliance', ['openbrain', 'prometheus']),
+      makeAgreement('capital_alliance', ['openbrain', 'nexus']),
+      makeAgreement('capital_alliance', ['openbrain', 'titan']),
+    ];
+    const state = stateWith(agreements);
+    const score = computeAgreementScore('openbrain', 'company', state);
+
+    // 3 * (100% + 75% + 50%) = 3 + 2.25 + 1.5 = 6.75
+    expect(score).toBeCloseTo(6.75);
+  });
+
+  it('gives zero for 5th+ of same type', () => {
+    const agreements = Array.from({ length: 7 }, (_, i) =>
+      makeAgreement('capital_alliance', ['openbrain', `partner_${i}`])
+    );
+    const state = stateWith(agreements);
+    const score = computeAgreementScore('openbrain', 'company', state);
+
+    // 3 * (1.0 + 0.75 + 0.5 + 0.25 + 0 + 0 + 0) = 3 * 2.5 = 7.5
+    expect(score).toBeCloseTo(7.5);
+  });
+
+  it('applies cross-country multiplier', () => {
+    // openbrain=US, deepcent=China
+    const domestic = stateWith([makeAgreement('safety_pact', ['openbrain', 'prometheus'])]);
+    const crossCountry = stateWith([makeAgreement('safety_pact', ['openbrain', 'deepcent'])]);
+
+    const domesticScore = computeAgreementScore('openbrain', 'company', domestic);
+    const crossScore = computeAgreementScore('openbrain', 'company', crossCountry);
+
+    expect(domesticScore).toBe(12);
+    expect(crossScore).toBe(18); // 12 * 1.5
+  });
+
+  it('applies stringency bonus for safety_pact', () => {
+    const low = stateWith([makeAgreement('safety_pact', ['openbrain', 'prometheus'], { min_safety: 0.3 })]);
+    const high = stateWith([makeAgreement('safety_pact', ['openbrain', 'prometheus'], { min_safety: 1.0 })]);
+
+    const lowScore = computeAgreementScore('openbrain', 'company', low);
+    const highScore = computeAgreementScore('openbrain', 'company', high);
+
+    expect(lowScore).toBe(12); // no bonus at exactly 0.3
+    expect(highScore).toBe(17); // 12 + 5 * (1.0 - 0.3) / 0.7 = 12 + 5
+  });
+
+  it('applies stringency bonus for intl_safety_framework', () => {
+    const state = stateWith([makeAgreement('intl_safety_framework', ['us_gov', 'china_gov'], { min_regulation: 1.0 })]);
+    const score = computeAgreementScore('us_gov', 'government', state);
+
+    // 18 (gov base) + 5 * (1.0 - 0.2) / 0.8 = 18 + 5 = 23, * 1.5 cross-country = 34.5
+    expect(score).toBeCloseTo(34.5);
+  });
+
+  it('uses government base scores for government roles', () => {
+    const state = stateWith([makeAgreement('info_sharing', ['us_gov', 'openbrain'])]);
+    const score = computeAgreementScore('us_gov', 'government', state);
+
+    expect(score).toBe(12); // gov base for effective tier
+  });
+
+  it('rewards diverse types over spam', () => {
+    // 7 capital_alliance spam
+    const spamState = stateWith(
+      Array.from({ length: 7 }, () => makeAgreement('capital_alliance', ['openbrain', 'prometheus']))
+    );
+    const spamScore = computeAgreementScore('openbrain', 'company', spamState);
+
+    // 3 different enforced types, cross-country, strong terms
+    const diverseState = stateWith([
+      makeAgreement('safety_pact', ['openbrain', 'deepcent'], { min_safety: 0.8 }),
+      makeAgreement('non_aggression', ['openbrain', 'qianneng']),
+      makeAgreement('intl_safety_framework', ['openbrain', 'deepcent'], { min_regulation: 0.6 }),
+    ]);
+    const diverseScore = computeAgreementScore('openbrain', 'company', diverseState);
+
+    // Spam: 3 * 2.5 = 7.5
+    // Diverse: each cross-country (1.5x), safety_pact: (12 + 5*(0.8-0.3)/0.7) * 1.5, etc.
+    expect(spamScore).toBeCloseTo(7.5);
+    expect(diverseScore).toBeGreaterThan(spamScore * 5);
   });
 });
