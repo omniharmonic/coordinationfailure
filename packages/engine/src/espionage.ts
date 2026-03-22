@@ -21,7 +21,7 @@ export function processEspionage(
       // Detection check
       const target = state.companies[updated.target_id];
       const detectionProb = target
-        ? 0.2 + (target.security_level / 100) * 0.5
+        ? Math.min(0.95, 0.2 + 0.4 * Math.log2(1 + target.security_level / 30))
         : 0.3;
       const detected = rng.chance(detectionProb);
 
@@ -57,7 +57,7 @@ export function processEspionage(
         // Increase target's security
         state.companies[updated.target_id] = {
           ...target,
-          security_level: Math.min(100, target.security_level + 10),
+          security_level: target.security_level + 10,
         };
       }
     } else {
@@ -76,7 +76,7 @@ function computeSuccessProbability(
   state: GameState,
 ): number {
   const target = state.companies[op.target_id];
-  const targetSecurity = target ? target.security_level / 100 : 0.3;
+  const targetSecurity = target ? Math.log2(1 + target.security_level / 30) * 0.5 : 0.3;
   const initiatorGov = state.governments[op.initiator_id];
   const intelBudget = initiatorGov ? initiatorGov.intelligence_budget : 0.3;
 

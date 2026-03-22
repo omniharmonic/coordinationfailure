@@ -68,8 +68,8 @@ export function computeCapitalDelta(
   // Safety cost: higher safety allocation increases burn significantly
   const safetyCost = company.safety_allocation * company.burn_rate * 0.5 * tickDuration;
 
-  // Compute maintenance cost (higher compute = higher ongoing cost)
-  const computeCost = (company.compute_level / 100) * company.burn_rate * 0.3 * tickDuration;
+  // Compute maintenance cost — log scaling matches compute benefit curve
+  const computeCost = Math.log2(1 + company.compute_level / 50) * company.burn_rate * 0.3 * tickDuration;
 
   return investment + revenue + subsidies - burn - safetyCost - computeCost;
 }

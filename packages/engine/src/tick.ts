@@ -181,7 +181,7 @@ function applyPlayerActions(state: GameState, actions: PlayerAction[]): GameStat
           state.companies[action.role_id] = {
             ...company,
             capital_reserves: company.capital_reserves - action.amount,
-            compute_level: Math.min(100, company.compute_level + action.amount * 2),
+            compute_level: company.compute_level + action.amount * 2,
           };
         }
         break;
@@ -193,7 +193,7 @@ function applyPlayerActions(state: GameState, actions: PlayerAction[]): GameStat
           state.companies[action.role_id] = {
             ...company,
             capital_reserves: company.capital_reserves - action.amount,
-            security_level: Math.min(100, company.security_level + action.amount * 3),
+            security_level: company.security_level + action.amount * 3,
           };
         }
         break;

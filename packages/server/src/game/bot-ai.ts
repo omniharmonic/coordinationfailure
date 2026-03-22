@@ -168,11 +168,10 @@ export function runSmartBot(
     });
 
     // === COMPUTE INVESTMENT (only when below max and can afford it) ===
-    if (company.compute_level < 90 && company.capital_reserves > 20) {
+    if (company.capital_reserves > 20) {
       const amount = Math.min(
         company.capital_reserves * prof.computeSpendRate,
         3, // cap per tick
-        (90 - company.compute_level) / 2, // diminish near max
       );
       if (amount > 0.5) {
         gm.bufferAction(gameId, { type: 'invest_compute', role_id: roleId, amount });
@@ -180,7 +179,7 @@ export function runSmartBot(
     }
 
     // === SECURITY INVESTMENT (less frequent, only when needed) ===
-    if (company.security_level < 70 && company.capital_reserves > 30 && tick % 5 === 0) {
+    if (company.capital_reserves > 30 && tick % 5 === 0) {
       const amount = Math.min(company.capital_reserves * prof.securityPriority * 0.02, 2);
       if (amount > 0.3) {
         gm.bufferAction(gameId, { type: 'invest_security', role_id: roleId, amount });

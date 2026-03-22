@@ -39,7 +39,7 @@ export function computeCapabilityDelta(
   const baseRate = 0.10;
 
   const rndMultiplier = getRAndDMultiplier(company.capability_level);
-  const computeFactor = 0.5 + (company.compute_level / 100) * 0.5; // 0.5 to 1.0
+  const computeFactor = 0.5 + 0.5 * Math.log2(1 + company.compute_level / 50); // log scaling: always increasing, never caps
   const talentFactor = company.talent_factor;
   const capitalEfficiency = Math.min(1.0, company.capital_reserves / (company.burn_rate * 10 + 1));
 
