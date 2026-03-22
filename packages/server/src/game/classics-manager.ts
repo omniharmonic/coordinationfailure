@@ -164,16 +164,17 @@ export class ClassicsManager {
     setInterval(() => this.cleanStaleGames(), 60_000);
   }
 
-  /** Remove waiting lobbies (5 min) and inactive playing games (10 min) */
+  /** Remove waiting lobbies (5 min) and truly abandoned playing games (30 min) */
   private cleanStaleGames(): void {
     const now = Date.now();
     const FIVE_MINUTES = 5 * 60 * 1000;
-    const TEN_MINUTES = 10 * 60 * 1000;
+    const THIRTY_MINUTES = 30 * 60 * 1000;
+    const ONE_HOUR = 60 * 60 * 1000;
 
     for (const [id, game] of this.games) {
       if (game.phase === 'complete') {
-        // Remove completed games after 30 minutes to free memory
-        if (now - game.last_activity > 30 * 60 * 1000) {
+        // Remove completed games after 1 hour to free memory
+        if (now - game.last_activity > ONE_HOUR) {
           this.games.delete(id);
         }
         continue;
@@ -185,8 +186,11 @@ export class ClassicsManager {
         continue;
       }
 
-      if (game.phase === 'playing' && now - game.last_activity > TEN_MINUTES) {
-        console.log(`[CF] Cleaning inactive classic game ${id.slice(0, 16)} (${game.type}, inactive ${Math.round((now - game.last_activity) / 60000)}min)`);
+      // Playing games: only clean up after 30 min of NO activity at all.
+      // Swarm agents can take 10-20 min per round due to LLM thinking time,
+      // polling, and subagent scheduling. 10 min was way too aggressive.
+      if (game.phase === 'playing' && now - game.last_activity > THIRTY_MINUTES) {
+        console.log(`[CF] Cleaning abandoned classic game ${id.slice(0, 16)} (${game.type}, inactive ${Math.round((now - game.last_activity) / 60000)}min)`);
         game.phase = 'complete';
         this.fireGameEndCallbacks(game);
         continue;
@@ -391,6 +395,11 @@ export class ClassicsManager {
   } {
     const game = this.games.get(gameId);
     if (!game) throw new Error(`Classic game ${gameId} not found`);
+
+    // Polling counts as activity — keeps game alive during slow agent rounds
+    if (game.phase === 'playing') {
+      game.last_activity = Date.now();
+    }
 
     const def = GAME_DEFS[game.type];
 
