@@ -1,10 +1,12 @@
 import { v4 as uuid } from 'uuid';
+import { generateBoard, boardToText } from './schelling-board.js';
+import type { SchellingBoard } from './schelling-board.js';
 
 // ---------------------------------------------------------------------------
 // Types for classic game engines (placeholder interfaces until engine files exist)
 // ---------------------------------------------------------------------------
 
-export type ClassicGameType = 'prisoners_dilemma' | 'stag_hunt' | 'tragedy_of_commons';
+export type ClassicGameType = 'prisoners_dilemma' | 'stag_hunt' | 'tragedy_of_commons' | 'schelling_point';
 
 export interface ClassicRoundResult {
   round: number;
@@ -12,6 +14,8 @@ export interface ClassicRoundResult {
   payoffs: Record<string, number>;
   /** For tragedy_of_commons: resource level after this round resolved */
   resource_after?: number;
+  /** For schelling_point: the board used this round */
+  board?: SchellingBoard;
 }
 
 export interface ClassicGameConfig {
@@ -39,6 +43,8 @@ export interface ClassicGameSession {
   resource_level?: number;
   /** Tragedy of the Commons: true if game ended because resource hit 0 */
   ended_by_depletion?: boolean;
+  /** Schelling Point: current board for this round */
+  current_board?: SchellingBoard;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,12 +117,28 @@ const GAME_DEFS: Record<ClassicGameType, {
       return payoffs;
     },
   },
+  schelling_point: {
+    description: 'Schelling Point — independently choose a location on a shared map. No communication. Converge on the focal point.',
+    min_players: 2,
+    max_players: 6,
+    valid_choices: [], // coordinate format "row,col" — validated separately
+    default_rounds: 5,
+    resolvePayoffs(_choices, playerIds) {
+      // Fallback — the real logic is in resolveSchellingRound
+      const payoffs: Record<string, number> = {};
+      for (const id of playerIds) payoffs[id] = 0;
+      return payoffs;
+    },
+  },
 };
 
 // Tragedy of the Commons constants
 const TRAGEDY_CAPACITY = 100;
 const TRAGEDY_GROWTH_RATE = 0.3;
 const TRAGEDY_INITIAL_RESOURCE = 100;
+
+// Schelling board seed counter for unique boards
+let seed_counter = 1;
 
 // ---------------------------------------------------------------------------
 // ClassicsManager
@@ -149,6 +171,8 @@ export class ClassicsManager {
         max_players: def.max_players,
         valid_choices: type === 'tragedy_of_commons'
           ? ['0.0 to 1.0 (numeric extraction rate)']
+          : type === 'schelling_point'
+          ? ['"row,col" coordinates (e.g., "3,5")']
           : def.valid_choices,
       }),
     );
@@ -209,6 +233,12 @@ export class ClassicsManager {
       session.ended_by_depletion = false;
     }
 
+    // Initialize schelling_point-specific fields
+    if (type === 'schelling_point') {
+      session.config.allow_communication = false; // never allow comms for schelling
+      session.current_board = generateBoard(8, 8, Date.now() ^ (seed_counter++));
+    }
+
     this.games.set(gameId, session);
     return session;
   }
@@ -249,6 +279,21 @@ export class ClassicsManager {
       const rate = parseFloat(choice);
       if (isNaN(rate) || rate < 0.0 || rate > 1.0) {
         throw new Error(`Invalid extraction rate "${choice}". Must be a number between 0.0 and 1.0`);
+      }
+    } else if (game.type === 'schelling_point') {
+      // Validate coordinate format "row,col"
+      const parts = choice.split(',');
+      if (parts.length !== 2) {
+        throw new Error(`Invalid coordinate "${choice}". Format: "row,col" (e.g., "3,5")`);
+      }
+      const row = parseInt(parts[0], 10);
+      const col = parseInt(parts[1], 10);
+      if (isNaN(row) || isNaN(col)) {
+        throw new Error(`Invalid coordinate "${choice}". Row and col must be numbers.`);
+      }
+      const board = game.current_board;
+      if (board && (row < 0 || row >= board.height || col < 0 || col >= board.width)) {
+        throw new Error(`Coordinate "${choice}" out of bounds. Board is ${board.height}×${board.width} (0-indexed).`);
       }
     } else if (!def.valid_choices.includes(choice)) {
       throw new Error(`Invalid choice "${choice}". Valid choices: ${def.valid_choices.join(', ')}`);
@@ -302,9 +347,11 @@ export class ClassicsManager {
 
     const def = GAME_DEFS[game.type];
 
-    // For Tragedy, communicate numeric range instead of empty array
+    // For Tragedy/Schelling, communicate format instead of empty array
     const validChoices = game.type === 'tragedy_of_commons'
       ? ['0.0 to 1.0 (numeric extraction rate)']
+      : game.type === 'schelling_point'
+      ? ['"row,col" coordinates (e.g., "3,5")']
       : def.valid_choices;
 
     const result: any = {
@@ -329,6 +376,13 @@ export class ClassicsManager {
       result.ended_by_depletion = game.ended_by_depletion;
     }
 
+    if (game.type === 'schelling_point' && game.current_board) {
+      result.board = boardToText(game.current_board);
+      result.board_grid = game.current_board.cells;
+      result.board_width = game.current_board.width;
+      result.board_height = game.current_board.height;
+    }
+
     return result;
   }
 
@@ -338,10 +392,14 @@ export class ClassicsManager {
     if (!game) return undefined;
 
     const { pending_choices, messages, ...rest } = game;
-    return {
+    const result: any = {
       ...rest,
       pending_count: Object.keys(pending_choices).length,
     };
+    if (game.type === 'schelling_point' && game.current_board) {
+      result.board_text = boardToText(game.current_board);
+    }
+    return result;
   }
 
   /** Send a chat message in a classic game (if communication is enabled). */
@@ -424,6 +482,9 @@ export class ClassicsManager {
     // Use special logic for tragedy_of_commons
     if (game.type === 'tragedy_of_commons') {
       return this.resolveTragedyRound(game);
+    }
+    if (game.type === 'schelling_point') {
+      return this.resolveSchellingRound(game);
     }
 
     const def = GAME_DEFS[game.type];
@@ -515,6 +576,83 @@ export class ClassicsManager {
     } else if (game.current_round > game.total_rounds) {
       game.phase = 'complete';
       this.fireGameEndCallbacks(game);
+    }
+
+    return result;
+  }
+
+  /**
+   * Schelling Point round resolution.
+   *
+   * Scoring: For each pair of players, score = max(0, 15 - manhattan_distance).
+   * Same-cell bonus: +10 per matching pair.
+   * All-same bonus: +20 × N if every player chose the same cell.
+   */
+  private resolveSchellingRound(game: ClassicGameSession): ClassicRoundResult {
+    const board = game.current_board!;
+    const n = game.player_ids.length;
+
+    // Parse coordinates
+    const coords: Record<string, [number, number]> = {};
+    for (const id of game.player_ids) {
+      const parts = game.pending_choices[id].split(',');
+      coords[id] = [parseInt(parts[0], 10), parseInt(parts[1], 10)];
+    }
+
+    // Calculate pairwise scoring
+    const payoffs: Record<string, number> = {};
+    for (const id of game.player_ids) payoffs[id] = 0;
+
+    for (let i = 0; i < game.player_ids.length; i++) {
+      for (let j = i + 1; j < game.player_ids.length; j++) {
+        const a = game.player_ids[i];
+        const b = game.player_ids[j];
+        const dist = Math.abs(coords[a][0] - coords[b][0]) + Math.abs(coords[a][1] - coords[b][1]);
+        const pairScore = Math.max(0, 15 - dist);
+        payoffs[a] += pairScore;
+        payoffs[b] += pairScore;
+
+        // Same-cell bonus
+        if (dist === 0) {
+          payoffs[a] += 10;
+          payoffs[b] += 10;
+        }
+      }
+    }
+
+    // All-same bonus: if every player chose the same cell
+    const allSame = game.player_ids.every(
+      id => coords[id][0] === coords[game.player_ids[0]][0] &&
+            coords[id][1] === coords[game.player_ids[0]][1],
+    );
+    if (allSame && n >= 2) {
+      for (const id of game.player_ids) {
+        payoffs[id] += 20 * n;
+      }
+    }
+
+    const result: ClassicRoundResult = {
+      round: game.current_round,
+      choices: { ...game.pending_choices },
+      payoffs,
+      board,
+    };
+
+    game.history.push(result);
+
+    for (const id of game.player_ids) {
+      game.scores[id] = (game.scores[id] ?? 0) + (payoffs[id] ?? 0);
+    }
+
+    game.pending_choices = {};
+    game.current_round++;
+
+    if (game.current_round > game.total_rounds) {
+      game.phase = 'complete';
+      this.fireGameEndCallbacks(game);
+    } else {
+      // Generate a new board for the next round
+      game.current_board = generateBoard(8, 8, Date.now() ^ (seed_counter++));
     }
 
     return result;

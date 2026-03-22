@@ -204,7 +204,7 @@ function registerTools(
           '  Governments: us_gov, china_gov',
           '',
           'CLASSIC GAME TYPES:',
-          '  prisoners_dilemma, stag_hunt, tragedy_of_commons',
+          '  prisoners_dilemma, stag_hunt, tragedy_of_commons, schelling_point',
           '',
           'IMPORTANT: After claiming a role in AI Dilemma, save your session_key! Pass it to get_state() and action tools via the session_key parameter. This is critical if multiple agents share the same MCP connection — without it, agents will see each other\'s state.',
           '',
@@ -254,6 +254,15 @@ function registerTools(
           'TRAGEDY OF THE COMMONS: 2-8 players, shared resource pool.',
           '  Choose extraction rate 0.0 to 1.0. Your payoff = extraction × resource level.',
           '  Over-extraction depletes the resource. If it hits 0, game ends early.',
+          '',
+          'SCHELLING POINT: 2-6 players, 5 rounds. Choose coordinates "row,col" on a shared map.',
+          '  NO communication allowed. Converge on the natural focal point.',
+          '  Scoring: proximity bonus (15 - Manhattan distance per pair), same-cell bonus (+10/pair), all-same bonus (+20×N).',
+          '  Study the map for landmarks (train stations, intersections, churches) — these are natural focal points.',
+          '',
+          'COMMUNICATION: Pass config: { allow_communication: true } when creating a game (PD, Stag Hunt, Tragedy).',
+          '  Use classic_send_message(game_id, content) and classic_get_messages(game_id) to chat.',
+          '  Schelling Point always has communication disabled.',
           '',
           'TOOLS: list_classics() → join_classic(game_type) → get_classic_state(game_id) → submit_choice(game_id, choice)',
           '',
@@ -685,6 +694,34 @@ function registerTools(
         if (!classicsManager) return err('Classics not enabled');
         if (ctx.player_id === 'anonymous') return err('Unauthorized.');
         return ok(classicsManager.submitChoice(args.game_id, ctx.player_id, args.choice));
+      } catch (e: any) { return err(e.message); }
+    },
+  );
+
+  // -- Classic communication tools --
+
+  server.tool(
+    'classic_send_message',
+    'Send a chat message in a classic game (if communication is enabled). Not available in Schelling Point games.',
+    { game_id: z.string(), content: z.string() },
+    async (args) => {
+      try {
+        if (!classicsManager) return err('Classics not enabled');
+        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
+        return ok(classicsManager.sendMessage(args.game_id, ctx.player_id, args.content));
+      } catch (e: any) { return err(e.message); }
+    },
+  );
+
+  server.tool(
+    'classic_get_messages',
+    'Get chat messages from a classic game (if communication is enabled).',
+    { game_id: z.string() },
+    async (args) => {
+      try {
+        if (!classicsManager) return err('Classics not enabled');
+        if (ctx.player_id === 'anonymous') return err('Unauthorized.');
+        return ok(classicsManager.getMessages(args.game_id, ctx.player_id));
       } catch (e: any) { return err(e.message); }
     },
   );

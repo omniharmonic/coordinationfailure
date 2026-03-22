@@ -54,6 +54,7 @@ interface ClassicLobbyDetail {
   total_rounds: number;
   pending_count: number;
   scores: Record<string, number>;
+  config?: { allow_communication?: boolean };
 }
 
 const GAME_TYPES = [
@@ -74,6 +75,12 @@ const GAME_TYPES = [
     label: 'TRAGEDY OF THE COMMONS',
     description: 'Share a finite resource pool. Each player picks an extraction rate (0.0 = conserve, 1.0 = full exploit). Over-extraction depletes the commons for all.',
     tagline: 'SUSTAINABILITY VS. GREED',
+  },
+  {
+    type: 'schelling_point',
+    label: 'SCHELLING POINT',
+    description: 'Players independently choose a location on a random map. No communication. Converge on natural focal points — train stations, intersections, landmarks.',
+    tagline: 'CONVERGENCE WITHOUT WORDS',
   },
 ] as const;
 
@@ -177,7 +184,7 @@ export function ClassicsLobby({ onSpectate, onBack }: {
     const tokens = [token1, token2];
     let stopped = false;
 
-    const getBotChoice = (type: string): string => {
+    const getBotChoice = (type: string, boardData?: any): string => {
       if (type === 'prisoners_dilemma') {
         return Math.random() < 0.6 ? 'cooperate' : 'defect';
       } else if (type === 'stag_hunt') {
@@ -185,6 +192,26 @@ export function ClassicsLobby({ onSpectate, onBack }: {
       } else if (type === 'tragedy_of_commons') {
         const rate = 0.2 + Math.random() * 0.4; // 0.2 to 0.6
         return rate.toFixed(2);
+      } else if (type === 'schelling_point') {
+        // Try to pick a landmark cell if board data is available
+        if (boardData?.board_grid) {
+          const landmarks: [number, number][] = [];
+          const grid = boardData.board_grid;
+          const landmarkTypes = ['school', 'church', 'hospital', 'library', 'train_station', 'gas_station', 'parking_garage', 'intersection'];
+          for (let r = 0; r < grid.length; r++) {
+            for (let c = 0; c < (grid[r]?.length ?? 0); c++) {
+              if (landmarkTypes.includes(grid[r][c])) {
+                landmarks.push([r, c]);
+              }
+            }
+          }
+          if (landmarks.length > 0) {
+            const [r, c] = landmarks[Math.floor(Math.random() * landmarks.length)];
+            return `${r},${c}`;
+          }
+        }
+        // Fallback: random coordinate on 8x8 board
+        return `${Math.floor(Math.random() * 8)},${Math.floor(Math.random() * 8)}`;
       }
       return 'cooperate';
     };
@@ -208,7 +235,7 @@ export function ClassicsLobby({ onSpectate, onBack }: {
 
         if (state.phase === 'playing') {
           for (let i = 0; i < tokens.length; i++) {
-            const choice = getBotChoice(gameType);
+            const choice = getBotChoice(gameType, state);
             try {
               await fetch('/mcp/tool', {
                 method: 'POST',
@@ -439,8 +466,18 @@ export function ClassicsLobby({ onSpectate, onBack }: {
           <div style={{ fontSize: '1.1rem', letterSpacing: '3px', marginBottom: '8px' }}>
             {gameLabel}
           </div>
-          <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.85rem', marginBottom: '16px' }}>
-            GAME ID: {shortId} &bull; {playerCount}/{maxPlayers} PLAYERS
+          <div style={{ color: 'var(--crt-text-dim)', fontSize: '0.85rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>GAME ID: {shortId} &bull; {playerCount}/{maxPlayers} PLAYERS</span>
+            {lobbyDetail?.config?.allow_communication && (
+              <span style={{
+                fontSize: '0.65rem', letterSpacing: '1px',
+                color: 'var(--crt-cyan, #66ccff)',
+                border: '1px solid var(--crt-cyan, #66ccff)',
+                padding: '1px 6px',
+              }}>
+                COMMS ENABLED
+              </span>
+            )}
           </div>
 
           {/* Current players */}

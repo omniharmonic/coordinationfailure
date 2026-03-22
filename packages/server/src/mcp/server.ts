@@ -347,12 +347,20 @@ async function handleToolCall(
       return classicsManager.submitChoice(choiceGameId, auth.player_id, params.choice);
     }
 
-    case 'classic_chat': {
+    case 'classic_chat':
+    case 'classic_send_message': {
       if (!classicsManager) throw new Error('Classics not enabled');
       const chatGameId = params.game_id;
       if (!chatGameId) throw new Error('Missing game_id');
       if (!params.content) throw new Error('Missing content');
       return classicsManager.sendMessage(chatGameId, auth.player_id, params.content);
+    }
+
+    case 'classic_get_messages': {
+      if (!classicsManager) throw new Error('Classics not enabled');
+      const msgGameId = params.game_id;
+      if (!msgGameId) throw new Error('Missing game_id');
+      return classicsManager.getMessages(msgGameId, auth.player_id);
     }
 
     case 'submit_debrief': {
@@ -451,5 +459,7 @@ function getToolList() {
     { name: 'get_classic_state', description: 'Get current state for your classic game', params: { game_id: 'string' } },
     { name: 'submit_choice', description: 'Submit your choice for current round', params: { game_id: 'string', choice: 'string' } },
     { name: 'classic_chat', description: 'Send a message in classic game (if communication enabled)', params: { game_id: 'string', content: 'string' } },
+    { name: 'classic_send_message', description: 'Send a chat message in a classic game (if communication enabled)', params: { game_id: 'string', content: 'string' } },
+    { name: 'classic_get_messages', description: 'Get chat messages from a classic game', params: { game_id: 'string' } },
   ];
 }

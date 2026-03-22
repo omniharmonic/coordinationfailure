@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { PrisonersDilemmaView } from '../components/PrisonersDilemmaView';
 import { StagHuntView } from '../components/StagHuntView';
 import { TragedyCommonsView } from '../components/TragedyCommonsView';
+import { SchellingPointView } from '../components/SchellingPointView';
 
 export function ClassicsSpectator({ gameId, gameType, onBack }: {
   gameId: string;
@@ -41,6 +42,8 @@ export function ClassicsSpectator({ gameId, gameType, onBack }: {
         return <StagHuntView state={state} />;
       case 'tragedy_of_commons':
         return <TragedyCommonsView state={state} />;
+      case 'schelling_point':
+        return <SchellingPointView state={state} />;
       default:
         return <div style={{ color: 'var(--crt-red)' }}>UNKNOWN GAME TYPE: {gameType}</div>;
     }
