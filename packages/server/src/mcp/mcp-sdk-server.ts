@@ -786,10 +786,16 @@ function registerTools(
           players.push({ handle, player_id: player.id, player_token: player.token });
         }
 
+        // Default communication ON for non-Schelling games (the whole point of swarm is watching agents talk)
+        const simConfig = {
+          ...(gameType !== 'schelling_point' ? { allow_communication: true } : {}),
+          ...args.config,
+        };
+
         // Create game with first player
         const game = classicsManager.createClassicGame(
           gameType as any,
-          args.config,
+          simConfig,
           players[0].player_id,
         );
 
@@ -810,22 +816,27 @@ function registerTools(
           })),
           instructions: [
             `Game "${gameType}" is ready with ${numPlayers} players (phase: ${game.phase}).`,
-            'Each player has a unique player_token. Pass it to all classic game tools.',
+            'Each player has a unique player_token. Pass it to ALL classic game tools.',
             '',
-            'SWARM PLAY INSTRUCTIONS:',
-            'For each player, make independent decisions using their player_token:',
-            `  1. get_classic_state(game_id="${game.id}", player_token=TOKEN) — see the board/state`,
-            `  2. submit_choice(game_id="${game.id}", choice=CHOICE, player_token=TOKEN) — submit a move`,
-            gameType !== 'schelling_point' && game.config.allow_communication
-              ? `  3. classic_send_message(game_id="${game.id}", content=MSG, player_token=TOKEN) — chat`
+            'EACH AGENT\'S GAME LOOP (repeat every round):',
+            `  1. get_classic_state(game_id="${game.id}", player_token=TOKEN)`,
+            game.config.allow_communication
+              ? `  2. classic_get_messages(game_id="${game.id}", player_token=TOKEN) — read opponent messages`
               : '',
+            game.config.allow_communication
+              ? `  3. classic_send_message(game_id="${game.id}", content="your strategy/thoughts", player_token=TOKEN) — ALWAYS send a message before choosing`
+              : '',
+            `  ${game.config.allow_communication ? '4' : '2'}. submit_choice(game_id="${game.id}", choice=CHOICE, player_token=TOKEN)`,
             gameType === 'schelling_point'
-              ? '  3. Include reasoning="..." in submit_choice to explain focal-point analysis'
+              ? '     Include reasoning="..." to explain your focal-point analysis'
               : '',
+            `  ${game.config.allow_communication ? '5' : '3'}. Wait for round to resolve, then repeat`,
             '',
-            'IMPORTANT: Each agent should decide INDEPENDENTLY. Do not share information',
-            'between agents — that defeats the purpose of the coordination experiment.',
-            'If using Claude Code subagents, give each one ONLY its own player_token.',
+            game.config.allow_communication
+              ? 'COMMUNICATION IS ON: Agents MUST chat each round — discuss strategy, react to betrayals, negotiate. This is what makes the simulation interesting to watch.'
+              : 'COMMUNICATION IS OFF: Agents decide independently with no messaging.',
+            '',
+            'IMPORTANT: Each agent should decide INDEPENDENTLY. Give each subagent ONLY its own player_token.',
           ].filter(Boolean).join('\n'),
         });
       } catch (e: any) { return err(e.message); }

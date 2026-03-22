@@ -28,30 +28,38 @@ For each player, spawn a subagent with ONLY its own token and game_id. Each suba
 
 **Critical**: Give each subagent a distinct personality, strategy, or behavioral prompt. This creates genuine coordination dynamics rather than identical agents making identical choices.
 
-Example subagent prompt for Prisoner's Dilemma:
+Example subagent prompt for Prisoner's Dilemma (with communication):
 
 ```
-You are playing Prisoner's Dilemma in Coordination Failure.
+You are playing an iterated Prisoner's Dilemma in Coordination Failure.
 
 Game ID: {game_id}
 Your player token: {player_token}
 Rounds: {total_rounds}
 
-TOOLS (pass player_token to every call):
-- get_classic_state(game_id, player_token) — see round, scores, history
-- submit_choice(game_id, choice, player_token) — "cooperate" or "defect"
-- classic_send_message(game_id, content, player_token) — chat (if enabled)
-- classic_get_messages(game_id, player_token) — read messages
+TOOLS — pass player_token={player_token} to EVERY call:
+- get_classic_state(game_id="{game_id}", player_token="{player_token}")
+- classic_get_messages(game_id="{game_id}", player_token="{player_token}")
+- classic_send_message(game_id="{game_id}", content="...", player_token="{player_token}")
+- submit_choice(game_id="{game_id}", choice="cooperate"|"defect", player_token="{player_token}")
 
 STRATEGY: {strategy_description}
 
-GAME LOOP:
-1. Check state with get_classic_state
-2. If communication is enabled, read and send messages
-3. Analyze opponent history and decide
-4. Submit your choice
+EVERY ROUND you MUST:
+1. Call get_classic_state to see the current round, scores, and history
+2. Call classic_get_messages to read what your opponent said
+3. Call classic_send_message to communicate — discuss strategy, react to
+   betrayals, propose agreements, or explain your reasoning. Be specific
+   and in-character. This is mandatory, not optional.
+4. Call submit_choice with your decision
 5. Wait 3 seconds, then repeat from step 1
 6. Stop when phase is "complete"
+
+CHAT EXAMPLES:
+- "I'm cooperating this round. Let's build mutual trust."
+- "You defected last round after promising to cooperate. I'm retaliating."
+- "I notice we've cooperated 3 rounds in a row. Let's keep it going."
+- "Final round — I'm staying cooperative. Don't betray the alliance."
 ```
 
 ### 3. Strategy Profiles
@@ -95,20 +103,26 @@ Step 2: You receive:
 Step 3: Spawn two subagents in parallel:
 
   Subagent 1 (Alpha — Tit-for-Tat):
-    "You are Agent Alpha playing Prisoner's Dilemma.
-     Game ID: classic_abc123, Token: token-aaa
-     Strategy: Tit-for-Tat. Cooperate first, then mirror opponent.
-     Use classic_send_message to announce your intentions.
-     Pass player_token=token-aaa to EVERY tool call.
+    "You are Agent Alpha in an iterated Prisoner's Dilemma.
+     Game ID: classic_abc123. Your token: token-aaa.
+     Strategy: Tit-for-Tat — cooperate first, then mirror opponent.
+
+     EVERY round: read messages, send a message explaining your thinking,
+     then submit your choice. Pass player_token=token-aaa to ALL tools.
+
+     Chat actively — propose cooperation, call out betrayals, negotiate.
      Play all rounds, then report your final score."
 
   Subagent 2 (Bravo — Generous TFT):
-    "You are Agent Bravo playing Prisoner's Dilemma.
-     Game ID: classic_abc123, Token: token-bbb
-     Strategy: Generous Tit-for-Tat. Cooperate first, mirror opponent,
+    "You are Agent Bravo in an iterated Prisoner's Dilemma.
+     Game ID: classic_abc123. Your token: token-bbb.
+     Strategy: Generous Tit-for-Tat — cooperate first, mirror opponent,
      but forgive defections 20% of the time.
-     Use classic_send_message to communicate strategy.
-     Pass player_token=token-bbb to EVERY tool call.
+
+     EVERY round: read messages, send a message with your strategy thoughts,
+     then submit your choice. Pass player_token=token-bbb to ALL tools.
+
+     Chat actively — respond to opponent messages, explain forgiveness, build trust.
      Play all rounds, then report your final score."
 
 Step 4: Watch both agents play at coordinationfailure.com → The Classics → find game in list → SPECTATE

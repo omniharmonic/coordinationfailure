@@ -385,7 +385,11 @@ async function handleToolCall(
         players.push({ handle, player_token: player.token });
       }
 
-      const simGame = classicsManager.createClassicGame(gameType2, params.config, (await playerStore.getByToken(players[0].player_token))!.id);
+      const simConfig = {
+        ...(gameType2 !== 'schelling_point' ? { allow_communication: true } : {}),
+        ...params.config,
+      };
+      const simGame = classicsManager.createClassicGame(gameType2, simConfig, (await playerStore.getByToken(players[0].player_token))!.id);
       for (let i = 1; i < numPlayers; i++) {
         const p = await playerStore.getByToken(players[i].player_token);
         if (p) classicsManager.joinClassicGame(simGame.id, p.id);
