@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
 import { filterStateForRole } from '@cf/engine';
 import type { GameManager } from '../game/manager.js';
@@ -30,6 +31,7 @@ interface AuthContext {
 
 // Store active transports keyed by sessionId
 const transports = new Map<string, SSEServerTransport>();
+const streamTransports = new Map<string, StreamableHTTPServerTransport>();
 
 export function setupMcpSdkRoutes(
   app: Express,
@@ -39,13 +41,77 @@ export function setupMcpSdkRoutes(
   classicsManager: ClassicsManager,
 ): void {
 
-  // SSE endpoint — establishes the MCP connection
-  app.get('/mcp', (req: Request, res: Response) => {
+  // Streamable HTTP handler — newer MCP transport (Antigravity, Cursor, etc.)
+  const streamableHandler = async (req: Request, res: Response) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+    if (req.method === 'POST' && !sessionId) {
+      // New session — initialize
+      const auth = authenticate(req, sessionManager);
+      const ctx: AuthContext = auth ? { ...auth } : { player_id: 'anonymous' };
+
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => `stream_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        enableJsonResponse: true,
+      });
+
+      const mcpServer = new McpServer(
+        { name: 'coordination-failure', version: '1.0.0' },
+        { capabilities: { tools: {} } },
+      );
+
+      registerTools(mcpServer, ctx, gameManager, sessionManager, channelManager, classicsManager);
+
+      transport.onclose = () => {
+        if (transport.sessionId) streamTransports.delete(transport.sessionId);
+        if (ctx.session_key) sessionManager.markDisconnected(ctx.session_key);
+      };
+
+      await mcpServer.connect(transport);
+      if (transport.sessionId) streamTransports.set(transport.sessionId, transport);
+
+      await transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    if (sessionId) {
+      const transport = streamTransports.get(sessionId);
+      if (!transport) {
+        res.status(404).json({ error: 'Session not found. It may have expired.' });
+        return;
+      }
+      await transport.handleRequest(req, res, req.body);
+      return;
+    }
+
+    res.status(400).json({ error: 'Missing mcp-session-id header' });
+  };
+
+  // POST /mcp — Streamable HTTP initialize + messages
+  app.post('/mcp', (req: Request, res: Response, next: any) => {
+    // If it looks like a JSON-RPC MCP request, handle with streamable transport
+    if (req.body?.jsonrpc || req.body?.method) {
+      return streamableHandler(req, res);
+    }
+    // Otherwise fall through (e.g. to legacy /mcp/tool handler)
+    next();
+  });
+
+  // DELETE /mcp — Streamable HTTP session close
+  app.delete('/mcp', streamableHandler as any);
+
+  // SSE endpoint — establishes the MCP connection (legacy SSE transport for Claude Code)
+  app.get('/mcp', (req: Request, res: Response, next: any) => {
+    // Streamable HTTP GET — delegate to streamable handler
+    if (req.headers['mcp-session-id']) {
+      return streamableHandler(req, res);
+    }
+
     // Check Accept header — only handle SSE requests here
     const accept = req.headers.accept ?? '';
     if (!accept.includes('text/event-stream')) {
       // Not an SSE request; let it fall through to other handlers (e.g. SPA fallback)
-      return (res as any).next?.() ?? res.status(406).json({ error: 'This endpoint requires Accept: text/event-stream for MCP SSE connections' });
+      return next?.() ?? res.status(406).json({ error: 'This endpoint requires Accept: text/event-stream for MCP SSE connections' });
     }
 
     // Authenticate
@@ -107,6 +173,7 @@ export function setupMcpSdkRoutes(
       }
     });
   });
+
 }
 
 // ---- Auth helper (same logic as existing server.ts) ----
