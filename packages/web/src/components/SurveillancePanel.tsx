@@ -63,7 +63,12 @@ export function SurveillancePanel({
   const scrollRef = useRef<HTMLDivElement>(null);
   const prevCountRef = useRef(0);
 
-  // Fetch all messages + covert operations
+  // Refs to avoid stale closures — these change frequently but shouldn't restart the polling interval
+  const gameStateRef = useRef(gameState);
+  gameStateRef.current = gameState;
+  const openRef = useRef(open);
+  openRef.current = open;
+
   useEffect(() => {
     if (!gameId) return;
 
@@ -124,16 +129,17 @@ export function SurveillancePanel({
         }
         setCovertOpsCount(activeOps);
 
-        // Add agreement events from game state
-        if (gameState?.agreements) {
-          for (const ag of gameState.agreements) {
+        // Add agreement events from current game state (via ref to avoid dependency)
+        const currentState = gameStateRef.current;
+        if (currentState?.agreements) {
+          for (const ag of currentState.agreements) {
             if (ag.status === 'pending') {
               mapped.push({
                 id: `ag-${ag.id}`,
                 type: 'agreement',
                 from: ag.proposed_by,
                 content: `PROPOSAL: ${ag.type?.replace(/_/g, ' ').toUpperCase()} — awaiting: ${(ag.pending_acceptances ?? []).map((p: string) => ROLE_LABELS[p] ?? p).join(', ')}`,
-                timestamp: Date.now() - ((gameState.world?.tick_count - ag.proposed_at_tick) * 2000),
+                timestamp: Date.now() - ((currentState.world?.tick_count - ag.proposed_at_tick) * 2000),
                 agreement_type: ag.type,
                 parties: ag.parties,
               });
@@ -144,7 +150,7 @@ export function SurveillancePanel({
                 type: 'agreement',
                 from: ag.proposed_by,
                 content: `ACTIVE: ${ag.type?.replace(/_/g, ' ').toUpperCase()} — parties: ${(ag.parties ?? []).map((p: string) => ROLE_LABELS[p] ?? p).join(', ')}`,
-                timestamp: Date.now() - ((gameState.world?.tick_count - (ag.activated_at_tick ?? ag.proposed_at_tick)) * 2000),
+                timestamp: Date.now() - ((currentState.world?.tick_count - (ag.activated_at_tick ?? ag.proposed_at_tick)) * 2000),
                 agreement_type: ag.type,
                 parties: ag.parties,
               });
@@ -163,22 +169,23 @@ export function SurveillancePanel({
           }
         }
 
-        // Sort by timestamp
+        // Sort by timestamp, keep only the last 200 entries
         mapped.sort((a, b) => a.timestamp - b.timestamp);
-        setMessages(mapped);
+        const capped = mapped.slice(-200);
+        setMessages(capped);
 
         // Track unread
-        if (!open && mapped.length > prevCountRef.current) {
-          setUnreadCount(c => c + (mapped.length - prevCountRef.current));
+        if (!openRef.current && capped.length > prevCountRef.current) {
+          setUnreadCount(c => c + (capped.length - prevCountRef.current));
         }
-        prevCountRef.current = mapped.length;
+        prevCountRef.current = capped.length;
       } catch (_e) { /* ignore */ }
     }
 
     fetchAll();
-    const interval = setInterval(fetchAll, 3000);
+    const interval = setInterval(fetchAll, 4000);
     return () => clearInterval(interval);
-  }, [gameId, gameState, open]);
+  }, [gameId]);
 
   // Auto-scroll
   useEffect(() => {
