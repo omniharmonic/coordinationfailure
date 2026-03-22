@@ -836,6 +836,11 @@ function registerTools(
               ? 'COMMUNICATION IS ON: Agents MUST chat each round — discuss strategy, react to betrayals, negotiate. This is what makes the simulation interesting to watch.'
               : 'COMMUNICATION IS OFF: Agents decide independently with no messaging.',
             '',
+            'TIMING: Both agents run concurrently. After submitting, poll get_classic_state',
+            'every 2-3 seconds until the round resolves (current_round advances). Do NOT',
+            'resubmit — if you get "already submitted", just wait and poll. If has_submitted',
+            'is true and waiting_on > 0, the other agent has not submitted yet.',
+            '',
             'IMPORTANT: Each agent should decide INDEPENDENTLY. Give each subagent ONLY its own player_token.',
           ].filter(Boolean).join('\n'),
         });

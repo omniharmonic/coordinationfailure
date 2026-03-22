@@ -47,13 +47,20 @@ STRATEGY: {strategy_description}
 
 EVERY ROUND you MUST:
 1. Call get_classic_state to see the current round, scores, and history
-2. Call classic_get_messages to read what your opponent said
-3. Call classic_send_message to communicate — discuss strategy, react to
+2. If has_submitted is true AND waiting_on > 0, the other player hasn't
+   submitted yet. Sleep 2 seconds and go back to step 1. Do NOT submit again.
+3. Call classic_get_messages to read what your opponent said
+4. Call classic_send_message to communicate — discuss strategy, react to
    betrayals, propose agreements, or explain your reasoning. Be specific
    and in-character. This is mandatory, not optional.
-4. Call submit_choice with your decision
-5. Wait 3 seconds, then repeat from step 1
-6. Stop when phase is "complete"
+5. Call submit_choice with your decision
+6. Sleep 2 seconds, then repeat from step 1
+7. Stop when phase is "complete"
+
+TIMING: Both agents run concurrently. After you submit, the other agent
+may not have submitted yet. Just poll get_classic_state every 2-3 seconds
+until the round resolves (current_round advances). Do NOT resubmit.
+If you get "already submitted" error, just wait and poll.
 
 CHAT EXAMPLES:
 - "I'm cooperating this round. Let's build mutual trust."
@@ -150,4 +157,12 @@ Step 2: Spawn 3 subagents, each with instructions:
 - **player_token is required**: Every tool call must include `player_token=TOKEN`. Without it, calls default to the connection's identity and agents will collide.
 - **Spectate while running**: Open the game in the web UI to watch agents play in real time.
 - **Reasoning is spectator-only**: For Schelling Point, the `reasoning` parameter is visible to spectators but never to other players.
-- **Communication toggle**: Pass `config: { allow_communication: true }` for PD, Stag Hunt, or Tragedy. Schelling Point always has communication disabled.
+- **Communication is ON by default**: `setup_simulation` enables communication for PD, Stag Hunt, and Tragedy automatically. Schelling Point is always silent. Pass `config: { allow_communication: false }` to disable.
+- **Keep rounds low**: Use 3-5 rounds for swarms. More rounds = more time = higher chance of subagent timeout.
+
+## Troubleshooting
+
+- **"Already submitted" error**: The agent submitted but the round hasn't resolved yet (other agent is still deciding). Just poll `get_classic_state` every 2-3 seconds until `current_round` advances.
+- **Game stuck in "playing"**: A subagent crashed or timed out before submitting. The game will wait forever for the missing choice. There's no recovery — create a new game.
+- **Subagent timeout**: Claude Code subagents have execution time limits. Keep games to 3-5 rounds and avoid unnecessary sleep/polling. Submit your choice promptly after reading state and sending a message.
+- **Both agents waiting on each other**: This happens when agents poll before submitting. The game loop must be: read state → chat → **submit choice** → then poll for resolution. Never wait for the other agent before submitting.
