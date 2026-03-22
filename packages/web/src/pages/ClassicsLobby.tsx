@@ -725,13 +725,7 @@ export function ClassicsLobby({ onSpectate, onBack }: {
               key={game.game_id}
               className="panel"
               style={{ cursor: 'pointer' }}
-              onClick={() => {
-                if (game.phase === 'waiting' && game.players < game.max_players) {
-                  joinGame(game.game_id, game.type);
-                } else {
-                  onSpectate(game.game_id, game.type);
-                }
-              }}
+              onClick={() => onSpectate(game.game_id, game.type)}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -752,11 +746,11 @@ export function ClassicsLobby({ onSpectate, onBack }: {
                     {game.phase === 'playing' ? '● LIVE' :
                      game.phase === 'complete' ? '■ DONE' : '○ WAITING'}
                   </span>
-                  {game.phase === 'waiting' && game.players < game.max_players ? (
+                  {game.phase === 'waiting' ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        joinGame(game.game_id, game.type);
+                        onSpectate(game.game_id, game.type);
                       }}
                       style={{
                         background: 'rgba(255, 204, 0, 0.08)',
@@ -768,7 +762,7 @@ export function ClassicsLobby({ onSpectate, onBack }: {
                         cursor: 'pointer',
                       }}
                     >
-                      JOIN &rarr;
+                      WATCH &rarr;
                     </button>
                   ) : (
                     <button
