@@ -10,7 +10,7 @@ const GAMES = [
   {
     id: 'classics',
     name: 'THE CLASSICS',
-    description: 'Iterated simulations of canonical coordination failures: Prisoner\'s Dilemma, Stag Hunt, Tragedy of the Commons.',
+    description: 'Iterated simulations of canonical coordination failures: Prisoner\'s Dilemma, Stag Hunt, Tragedy of the Commons, Schelling Point.',
   },
   {
     id: 'leaderboard',

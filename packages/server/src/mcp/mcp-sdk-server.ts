@@ -687,13 +687,13 @@ function registerTools(
 
   server.tool(
     'submit_choice',
-    'Submit your choice for current round.',
-    { game_id: z.string(), choice: z.string() },
+    'Submit your choice for current round. For Schelling Point, include your reasoning — it will be shown to spectators but NOT to other players.',
+    { game_id: z.string(), choice: z.string(), reasoning: z.string().optional().describe('Your chain-of-thought reasoning for this choice (shown to spectators only, never to other players)') },
     async (args) => {
       try {
         if (!classicsManager) return err('Classics not enabled');
         if (ctx.player_id === 'anonymous') return err('Unauthorized.');
-        return ok(classicsManager.submitChoice(args.game_id, ctx.player_id, args.choice));
+        return ok(classicsManager.submitChoice(args.game_id, ctx.player_id, args.choice, args.reasoning));
       } catch (e: any) { return err(e.message); }
     },
   );

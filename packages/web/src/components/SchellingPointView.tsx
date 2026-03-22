@@ -10,6 +10,7 @@ interface RoundResult {
   choices: Record<string, string>;
   payoffs: Record<string, number>;
   board?: { width: number; height: number; cells: CellType[][] };
+  reasoning?: Record<string, string>;
 }
 
 const CELL_STYLES: Record<CellType, { bg: string; fg: string; char: string }> = {
@@ -242,6 +243,58 @@ export function SchellingPointView({ state }: { state: any }) {
         </div>
       </div>
 
+      {/* Chain-of-thought reasoning (spectator only) */}
+      {lastRound?.reasoning && Object.keys(lastRound.reasoning).length > 0 && (
+        <div className="panel">
+          <div className="panel-header" style={{
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <span>AGENT REASONING</span>
+            <span style={{
+              fontSize: '0.6rem',
+              color: 'var(--crt-red)',
+              border: '1px solid var(--crt-red)',
+              padding: '1px 6px',
+              letterSpacing: '1px',
+            }}>
+              HIDDEN FROM PLAYERS
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: '8px' }}>
+            {Object.entries(lastRound.reasoning).map(([pid, reasoning]) => {
+              const pidx = playerIds.indexOf(pid);
+              const color = PLAYER_COLORS[pidx % PLAYER_COLORS.length];
+              return (
+                <div key={pid} style={{
+                  padding: '8px',
+                  border: '1px solid var(--crt-border)',
+                  background: 'rgba(255,255,255,0.02)',
+                }}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px',
+                  }}>
+                    <div style={{
+                      width: '8px', height: '8px', borderRadius: '50%', background: color,
+                    }} />
+                    <span style={{ fontSize: '0.75rem', color, letterSpacing: '1px' }}>
+                      {pid.slice(0, 12).toUpperCase()} → ({lastRound.choices[pid]})
+                    </span>
+                  </div>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--crt-text-dim)',
+                    lineHeight: '1.5',
+                    fontStyle: 'italic',
+                  }}>
+                    {reasoning}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Round history */}
       {history.length > 0 && (
         <div className="panel">
@@ -275,6 +328,20 @@ export function SchellingPointView({ state }: { state: any }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                     {choices}
                   </div>
+                  {/* Inline reasoning for history rounds */}
+                  {round.reasoning && Object.keys(round.reasoning).length > 0 && (
+                    <div style={{ marginTop: '6px', paddingTop: '4px', borderTop: '1px dashed var(--crt-border)' }}>
+                      {Object.entries(round.reasoning).map(([pid, r]) => {
+                        const pidx = playerIds.indexOf(pid);
+                        const color = PLAYER_COLORS[pidx % PLAYER_COLORS.length];
+                        return (
+                          <div key={pid} style={{ fontSize: '0.7rem', color: 'var(--crt-text-dim)', marginTop: '2px' }}>
+                            <span style={{ color }}>●</span> {r.length > 120 ? r.slice(0, 120) + '...' : r}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}

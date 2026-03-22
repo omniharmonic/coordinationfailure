@@ -288,6 +288,49 @@ classicsManager.onGameComplete((gameId, session) => {
       }
     }
 
+    if (type === 'schelling_point') {
+      // Analyze convergence patterns
+      const sameCellRounds = history.filter(r => {
+        const coords = Object.values(r.choices);
+        return coords.every(c => c === coords[0]);
+      }).length;
+      const convergencePct = history.length > 0 ? Math.round((sameCellRounds / history.length) * 100) : 0;
+
+      if (convergencePct > 0) {
+        knowledgeBase.addPattern({
+          type: 'insight',
+          description: `Schelling Point: ${n}-player group achieved exact convergence in ${sameCellRounds}/${history.length} rounds (${convergencePct}%).`,
+          supporting_games: [gameId],
+          confidence: 0.6,
+        });
+      }
+
+      // Analyze which cell types were chosen as focal points
+      const cellTypeCounts: Record<string, number> = {};
+      for (const round of history) {
+        if (round.board?.cells) {
+          for (const choice of Object.values(round.choices)) {
+            const parts = choice.split(',');
+            const r = parseInt(parts[0], 10);
+            const c = parseInt(parts[1], 10);
+            if (round.board.cells[r]?.[c]) {
+              const cellType = round.board.cells[r][c];
+              cellTypeCounts[cellType] = (cellTypeCounts[cellType] ?? 0) + 1;
+            }
+          }
+        }
+      }
+      const topType = Object.entries(cellTypeCounts).sort(([, a], [, b]) => b - a)[0];
+      if (topType) {
+        knowledgeBase.addPattern({
+          type: 'strategy',
+          description: `Schelling Point: Most-chosen cell type was "${topType[0]}" (${topType[1]} picks). Landmarks serve as natural focal points.`,
+          supporting_games: [gameId],
+          confidence: 0.55,
+        });
+      }
+    }
+
     // General fallback: always log a summary pattern for any classic game
     const totalGroupScore = Object.values(scores).reduce((a, b) => a + b, 0);
     knowledgeBase.addPattern({

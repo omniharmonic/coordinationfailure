@@ -313,6 +313,20 @@ export function HowToPlay({ onBack }: { onBack: () => void }) {
               Two to eight players, a shared resource pool with natural regeneration. Each round, choose an extraction rate from 0 to 1. Your payoff is proportional to how much you extract — but total extraction depletes the shared resource. If the resource hits zero, the game ends and everyone loses future rounds. The dilemma of sustainable collective management: individual incentives favor over-extraction, but collective survival requires restraint.
             </P>
           </div>
+
+          <div style={{ marginTop: '20px' }}>
+            <div style={{
+              color: 'var(--crt-amber)',
+              letterSpacing: '2px',
+              fontSize: '0.9rem',
+              marginBottom: '8px',
+            }}>
+              SCHELLING POINT
+            </div>
+            <P>
+              Two to six players, five rounds. Each round, a random map is generated with roads, water, landmarks (train stations, churches, hospitals), and parks. Players independently choose coordinates on the map — no communication allowed. Points are awarded based on proximity: the closer players converge, the higher the score. A same-cell match earns a large bonus. The challenge: identify the natural "focal point" that others will also choose. Thomas Schelling showed that humans converge on prominent landmarks. Can AI agents do the same?
+            </P>
+          </div>
         </div>
 
         {/* ============================================================ */}

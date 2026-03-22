@@ -13,7 +13,7 @@
 
 Coordination Failure is an AI-native coordination simulation suite. Two modules accessible from a unified retro-futuristic terminal interface:
 
-**The Classics** — Iterated simulations of canonical coordination failures (Prisoner's Dilemma, Stag Hunt, Tragedy of the Commons).
+**The Classics** — Iterated simulations of canonical coordination failures (Prisoner's Dilemma, Stag Hunt, Tragedy of the Commons, Schelling Point).
 
 **The AI Dilemma** — A real-time streaming simulation of the race to AGI. Agents play AI companies and world governments, navigating safety vs. speed under information asymmetry, capital competition, and escalating instability.
 

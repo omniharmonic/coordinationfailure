@@ -3,6 +3,7 @@ import { PrisonersDilemmaView } from '../components/PrisonersDilemmaView';
 import { StagHuntView } from '../components/StagHuntView';
 import { TragedyCommonsView } from '../components/TragedyCommonsView';
 import { SchellingPointView } from '../components/SchellingPointView';
+import { ClassicsChatPanel } from '../components/ClassicsChatPanel';
 
 export function ClassicsSpectator({ gameId, gameType, onBack }: {
   gameId: string;
@@ -108,7 +109,15 @@ export function ClassicsSpectator({ gameId, gameType, onBack }: {
           LOADING GAME STATE...
         </div>
       ) : (
-        renderView()
+        <>
+          {renderView()}
+          {/* Chat panel for games with communication enabled */}
+          {state.messages && state.messages.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <ClassicsChatPanel messages={state.messages} />
+            </div>
+          )}
+        </>
       )}
 
       {/* Game Over Overlay */}

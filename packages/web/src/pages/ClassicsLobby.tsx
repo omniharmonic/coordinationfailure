@@ -115,6 +115,7 @@ export function ClassicsLobby({ onSpectate, onBack }: {
   const [games, setGames] = useState<ClassicGameListItem[]>([]);
   const [creating, setCreating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [commsEnabled, setCommsEnabled] = useState(false);
 
   // Waiting room state
   const [waitingGameId, setWaitingGameId] = useState<string | null>(null);
@@ -271,10 +272,11 @@ export function ClassicsLobby({ onSpectate, onBack }: {
       const { player_token: token1 } = await reg1.json();
 
       // 2. Create classic game via MCP tool
+      const gameConfig = (gameType !== 'schelling_point' && commsEnabled) ? { allow_communication: true } : undefined;
       const createRes = await fetch('/mcp/tool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token1}` },
-        body: JSON.stringify({ tool: 'join_classic', params: { game_type: gameType } }),
+        body: JSON.stringify({ tool: 'join_classic', params: { game_type: gameType, config: gameConfig } }),
       });
       if (!createRes.ok) throw new Error('Failed to create classic game');
       const createData = await createRes.json();
@@ -327,10 +329,11 @@ export function ClassicsLobby({ onSpectate, onBack }: {
       const { player_token } = await regRes.json();
 
       // 2. Create game via join_classic (creates when no game_id given)
+      const lobbyConfig = (gameType !== 'schelling_point' && commsEnabled) ? { allow_communication: true } : undefined;
       const createRes = await fetch('/mcp/tool', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${player_token}` },
-        body: JSON.stringify({ tool: 'join_classic', params: { game_type: gameType } }),
+        body: JSON.stringify({ tool: 'join_classic', params: { game_type: gameType, config: lobbyConfig } }),
       });
       if (!createRes.ok) throw new Error('Failed to create classic game');
       const createData = await createRes.json();
@@ -620,6 +623,44 @@ export function ClassicsLobby({ onSpectate, onBack }: {
           ERROR: {error}
         </div>
       )}
+
+      {/* Communication toggle */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '12px',
+        marginBottom: '20px', padding: '10px 14px',
+        border: '1px solid var(--crt-border)',
+        background: commsEnabled ? 'rgba(102, 204, 255, 0.05)' : 'transparent',
+      }}>
+        <button
+          onClick={() => setCommsEnabled(!commsEnabled)}
+          style={{
+            width: '36px', height: '20px',
+            background: commsEnabled ? 'var(--crt-cyan, #66ccff)' : 'rgba(255,255,255,0.1)',
+            border: '1px solid ' + (commsEnabled ? 'var(--crt-cyan, #66ccff)' : 'var(--crt-border)'),
+            borderRadius: '10px',
+            cursor: 'pointer',
+            position: 'relative',
+            padding: 0,
+          }}
+        >
+          <div style={{
+            width: '14px', height: '14px', borderRadius: '50%',
+            background: commsEnabled ? '#fff' : 'var(--crt-text-dim)',
+            position: 'absolute', top: '2px',
+            left: commsEnabled ? '19px' : '2px',
+            transition: 'left 0.15s',
+          }} />
+        </button>
+        <span style={{
+          fontSize: '0.8rem', letterSpacing: '2px',
+          color: commsEnabled ? 'var(--crt-cyan, #66ccff)' : 'var(--crt-text-dim)',
+        }}>
+          {commsEnabled ? 'COMMUNICATION ENABLED' : 'COMMUNICATION DISABLED'}
+        </span>
+        <span style={{ fontSize: '0.7rem', color: 'var(--crt-text-dim)' }}>
+          (applies to PD, Stag Hunt, Tragedy — Schelling Point always silent)
+        </span>
+      </div>
 
       {/* Game type cards */}
       <div style={{ display: 'grid', gap: '16px', marginBottom: '40px' }}>

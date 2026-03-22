@@ -16,6 +16,8 @@ export interface ClassicRoundResult {
   resource_after?: number;
   /** For schelling_point: the board used this round */
   board?: SchellingBoard;
+  /** Chain-of-thought reasoning submitted with choices (spectator-only, never shown to players) */
+  reasoning?: Record<string, string>;
 }
 
 export interface ClassicGameConfig {
@@ -36,6 +38,8 @@ export interface ClassicGameSession {
   history: ClassicRoundResult[];
   scores: Record<string, number>;
   pending_choices: Record<string, string>;
+  /** Chain-of-thought reasoning (stored per-round, never shown to players) */
+  pending_reasoning: Record<string, string>;
   phase: 'waiting' | 'playing' | 'complete';
   messages: Array<{ from: string; content: string; timestamp: number }>;
   created_at: Date;
@@ -222,6 +226,7 @@ export class ClassicsManager {
       history: [],
       scores: { [playerId]: 0 },
       pending_choices: {},
+      pending_reasoning: {},
       phase: 'waiting',
       messages: [],
       created_at: new Date(),
@@ -266,7 +271,7 @@ export class ClassicsManager {
   }
 
   /** Submit a choice for the current round. Auto-resolves when all players have submitted. */
-  submitChoice(gameId: string, playerId: string, choice: string): { submitted: true; round_resolved?: boolean; result?: ClassicRoundResult; resource_level?: number } {
+  submitChoice(gameId: string, playerId: string, choice: string, reasoning?: string): { submitted: true; round_resolved?: boolean; result?: ClassicRoundResult; resource_level?: number } {
     const game = this.games.get(gameId);
     if (!game) throw new Error(`Classic game ${gameId} not found`);
     if (game.phase !== 'playing') throw new Error(`Game is not in playing phase (current: ${game.phase})`);
@@ -304,6 +309,9 @@ export class ClassicsManager {
     }
 
     game.pending_choices[playerId] = choice;
+    if (reasoning) {
+      game.pending_reasoning[playerId] = reasoning;
+    }
 
     // Check if all players have submitted
     const allSubmitted = game.player_ids.every(id => game.pending_choices[id] !== undefined);
@@ -391,13 +399,17 @@ export class ClassicsManager {
     const game = this.games.get(gameId);
     if (!game) return undefined;
 
-    const { pending_choices, messages, ...rest } = game;
+    const { pending_choices, pending_reasoning, messages, ...rest } = game;
     const result: any = {
       ...rest,
       pending_count: Object.keys(pending_choices).length,
     };
     if (game.type === 'schelling_point' && game.current_board) {
       result.board_text = boardToText(game.current_board);
+    }
+    // Include messages for spectators (chat + comms indicator)
+    if (game.config.allow_communication && messages.length > 0) {
+      result.messages = messages.slice(-50);
     }
     return result;
   }
@@ -495,6 +507,9 @@ export class ClassicsManager {
       choices: { ...game.pending_choices },
       payoffs,
     };
+    if (Object.keys(game.pending_reasoning).length > 0) {
+      result.reasoning = { ...game.pending_reasoning };
+    }
 
     game.history.push(result);
 
@@ -503,6 +518,7 @@ export class ClassicsManager {
     }
 
     game.pending_choices = {};
+    game.pending_reasoning = {};
     game.current_round++;
 
     if (game.current_round > game.total_rounds) {
@@ -557,6 +573,9 @@ export class ClassicsManager {
       payoffs,
       resource_after: newResource,
     };
+    if (Object.keys(game.pending_reasoning).length > 0) {
+      result.reasoning = { ...game.pending_reasoning };
+    }
 
     game.history.push(result);
 
@@ -565,6 +584,7 @@ export class ClassicsManager {
     }
 
     game.pending_choices = {};
+    game.pending_reasoning = {};
     game.current_round++;
 
     // Check end conditions
@@ -637,6 +657,9 @@ export class ClassicsManager {
       payoffs,
       board,
     };
+    if (Object.keys(game.pending_reasoning).length > 0) {
+      result.reasoning = { ...game.pending_reasoning };
+    }
 
     game.history.push(result);
 
@@ -645,6 +668,7 @@ export class ClassicsManager {
     }
 
     game.pending_choices = {};
+    game.pending_reasoning = {};
     game.current_round++;
 
     if (game.current_round > game.total_rounds) {

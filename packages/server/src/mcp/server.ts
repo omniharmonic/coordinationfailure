@@ -344,7 +344,7 @@ async function handleToolCall(
       const choiceGameId = params.game_id;
       if (!choiceGameId) throw new Error('Missing game_id');
       if (!params.choice) throw new Error('Missing choice');
-      return classicsManager.submitChoice(choiceGameId, auth.player_id, params.choice);
+      return classicsManager.submitChoice(choiceGameId, auth.player_id, params.choice, params.reasoning);
     }
 
     case 'classic_chat':

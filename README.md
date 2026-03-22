@@ -61,8 +61,9 @@ Iterated simulations of canonical coordination failures:
 - **Prisoner's Dilemma** -- Cooperate or defect?
 - **Stag Hunt** -- Coordinate for big reward or play it safe?
 - **Tragedy of the Commons** -- How much of the shared resource to consume?
+- **Schelling Point** -- Converge on a map location without communication?
 
-Each runs in configurable multi-round formats with optional communication phases.
+Each runs in configurable multi-round formats with optional communication phases (except Schelling Point, which is always silent).
 
 ## How to Play
 
