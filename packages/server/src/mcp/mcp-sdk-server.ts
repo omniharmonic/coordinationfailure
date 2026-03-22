@@ -53,6 +53,12 @@ export function setupMcpSdkRoutes(
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => `stream_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
         enableJsonResponse: true,
+        // Store session at initialization time — NOT after handleRequest returns.
+        // The SDK sets sessionId during handleRequest, and if we wait until after,
+        // the HTTP response may trigger onclose which deletes the session first.
+        onsessioninitialized: (sid: string) => {
+          streamTransports.set(sid, transport);
+        },
       });
 
       const mcpServer = new McpServer(
@@ -62,13 +68,15 @@ export function setupMcpSdkRoutes(
 
       registerTools(mcpServer, ctx, gameManager, sessionManager, channelManager, classicsManager);
 
+      await mcpServer.connect(transport);
+
+      // Set onclose AFTER connect (Protocol.connect overwrites onclose)
+      const wrappedOnclose = transport.onclose;
       transport.onclose = () => {
+        wrappedOnclose?.();
         if (transport.sessionId) streamTransports.delete(transport.sessionId);
         if (ctx.session_key) sessionManager.markDisconnected(ctx.session_key);
       };
-
-      await mcpServer.connect(transport);
-      if (transport.sessionId) streamTransports.set(transport.sessionId, transport);
 
       await transport.handleRequest(req, res, req.body);
       return;
@@ -915,41 +923,70 @@ function registerTools(
             sessionManager.markConnected(sessionKey);
 
             const isCompany = role.type === 'company';
+            const isUS = role.id === 'us_gov';
+            const domesticCompanies = isUS ? 'openbrain, prometheus, nexus, titan' : 'deepcent, qianneng';
+            const foreignGov = isUS ? 'china_gov' : 'us_gov';
+
             const prompt = [
-              `You are ${role.name} in the AI Dilemma — a simulation of the race to AGI.`,
-              `You are a ${role.type}. ${isCompany ? 'Build AI capability while maintaining alignment.' : 'Regulate, fund, and coordinate your domestic AI industry.'}`,
+              `You are ${role.name} in the AI Dilemma — a real-time simulation of the race to AGI.`,
+              `Role: ${role.type}. ${isCompany ? 'Build AI capability while keeping alignment above 60.' : `Regulate and coordinate your domestic companies (${domesticCompanies}).`}`,
               '',
               `GAME: ${game_id} | ROLE: ${role.id} | SESSION KEY: ${sessionKey}`,
               '',
-              'YOUR TOOL CALLS (pass session_key to EVERY call):',
+              '== TOOLS (pass session_key to EVERY call) ==',
               '',
-              `  get_state(session_key="${sessionKey}") — see your state`,
-              isCompany ? `  set_safety_allocation(value=0.0-1.0, session_key="${sessionKey}") — balance safety vs speed` : '',
-              isCompany ? `  invest_compute(amount=N, session_key="${sessionKey}") — invest in compute` : '',
-              isCompany ? `  invest_security(amount=N, session_key="${sessionKey}") — invest in security` : '',
-              isCompany ? `  release_model(session_key="${sessionKey}") — release your model publicly` : '',
-              !isCompany ? `  set_regulation_level(value=0.0-1.0, session_key="${sessionKey}") — set safety floor` : '',
-              !isCompany ? `  allocate_subsidies(company_id="...", amount=N, session_key="${sessionKey}") — fund a company` : '',
-              !isCompany ? `  set_nationalization(level="none|info_sharing|partial|full", session_key="${sessionKey}")` : '',
-              `  send_message(channel_id="...", content="...", session_key="${sessionKey}") — communicate`,
-              `  get_messages(channel_id="...", session_key="${sessionKey}") — read messages`,
-              `  list_channels(session_key="${sessionKey}") — see available channels`,
-              `  propose_agreement(type="...", party_ids=[...], session_key="${sessionKey}") — diplomacy`,
+              `  get_state(session_key="${sessionKey}")`,
               '',
-              'GAME LOOP (runs ~10 min with 2-second ticks):',
-              '  1. Call get_state to see capability, alignment, capital, global stability',
-              '  2. Adjust safety_allocation based on alignment gap',
-              '  3. Communicate with other players — negotiate, coordinate, share info',
-              '  4. Propose or respond to agreements',
-              '  5. Sleep 5 seconds, repeat from step 1',
-              '  6. Stop when game phase is "ended"',
+              isCompany ? '  ACTION TOOLS:' : '  ACTION TOOLS:',
+              isCompany ? `  set_safety_allocation(value=0.5, session_key="${sessionKey}") — 0=fast/unsafe, 1=slow/safe` : '',
+              isCompany ? `  invest_compute(amount=10, session_key="${sessionKey}")` : '',
+              isCompany ? `  invest_security(amount=5, session_key="${sessionKey}")` : '',
+              isCompany ? `  release_model(session_key="${sessionKey}") — public release for influence` : '',
+              !isCompany ? `  set_regulation_level(value=0.4, session_key="${sessionKey}") — safety floor for companies` : '',
+              !isCompany ? `  allocate_subsidies(company_id="${domesticCompanies.split(', ')[0]}", amount=10, session_key="${sessionKey}")` : '',
+              !isCompany ? `  set_nationalization(level="info_sharing", session_key="${sessionKey}") — none/info_sharing/partial/full` : '',
+              !isCompany ? `  initiate_espionage(target_id="${foreignGov}", budget=5, session_key="${sessionKey}") — spy on foreign entities` : '',
               '',
-              'WINNING: If ANY company reaches capability ~95 with alignment > 60, everyone wins.',
-              'If alignment < 60 at AGI, everyone loses. Coordinate to survive.',
+              '  COMMUNICATION TOOLS:',
+              `  list_channels(session_key="${sessionKey}") — CALL THIS FIRST to see your channels`,
+              `  get_messages(channel_id="CHANNEL_ID", session_key="${sessionKey}")`,
+              `  send_message(channel_id="CHANNEL_ID", content="MSG", session_key="${sessionKey}")`,
+              `  create_channel(type="dm", invite_ids=["other_role_id"], session_key="${sessionKey}") — private DM`,
+              `  create_channel(type="group", invite_ids=["role1","role2"], session_key="${sessionKey}") — group chat`,
+              '',
+              '  DIPLOMACY TOOLS:',
+              `  propose_agreement(type="safety_pact", party_ids=["other_role"], terms={}, session_key="${sessionKey}")`,
+              `  respond_agreement(proposal_id="...", accept=true, session_key="${sessionKey}")`,
+              '',
+              '== GAME LOOP ==',
+              '',
+              '  1. get_state — check capability, alignment, capital, stability',
+              '  2. list_channels — find your channels (national, public, DMs)',
+              '  3. get_messages on 1-2 channels — read what others are saying',
+              '  4. send_message on a channel — coordinate, negotiate, warn',
+              '  5. Take 1-2 actions (set safety, invest, propose agreement, etc.)',
+              '  6. Sleep 8 seconds, repeat from step 1',
+              '  7. Stop when phase is "ended"',
+              '',
+              '== COMMUNICATION GUIDE ==',
+              '',
+              'You have pre-made channels. Call list_channels to discover them:',
+              isCompany ? `  - Your NATIONAL channel (${isUS ? 'US' : 'China'} companies + gov)` : `  - Your NATIONAL channel (${isUS ? 'US' : 'China'} gov + domestic companies)`,
+              '  - PUBLIC broadcast channel (all players see this)',
+              'Create DMs for private negotiations:',
+              isCompany ? `  create_channel(type="dm", invite_ids=["${isUS ? 'us_gov' : 'china_gov'}"], session_key="${sessionKey}")` : `  create_channel(type="dm", invite_ids=["${domesticCompanies.split(', ')[0]}"], session_key="${sessionKey}")`,
+              '',
+              'COMMUNICATE EVERY ROUND. Send messages on national AND public channels.',
+              'Create DMs for secret deals. This is what makes the simulation interesting.',
+              '',
+              '== WINNING ==',
+              '',
+              'ANY company reaching capability ~95 with alignment > 60 = everyone wins.',
+              'Alignment < 60 at AGI = everyone loses. COORDINATE TO SURVIVE.',
               '',
               isCompany
-                ? 'STRATEGY: Start with safety_allocation around 0.5. Watch alignment closely. At capability 80+, alignment decays fast — increase safety. Communicate with other companies and your government.'
-                : 'STRATEGY: Set moderate regulation (0.3-0.5). Fund companies that invest in safety. Use info_sharing nationalization early. Communicate with your domestic companies.',
+                ? `STRATEGY: Start safety at 0.5. At capability 80+, raise to 0.7+. Message your national channel and ${isUS ? 'US government' : 'China government'} for subsidies. Propose safety pacts with other companies. Create DMs for private deals.`
+                : `STRATEGY: Set regulation 0.3-0.4. Fund companies that invest in safety via allocate_subsidies. Use info_sharing nationalization. Consider espionage on ${foreignGov}. Message your national channel to coordinate with domestic companies.`,
             ].filter(Boolean).join('\n');
 
             rolePlayers.push({ role_id: role.id, role_name: role.name, role_type: role.type, handle, session_key: sessionKey, prompt });
