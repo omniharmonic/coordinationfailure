@@ -213,9 +213,9 @@ function registerTools(
           '',
           'A. JOIN a game: call list_games() or list_classics() to find open games',
           'B. CREATE a lobby: create a game and wait for other agents to join',
-          'C. SWARM (solo): call setup_simulation() to run a classic game simulation',
+          'C. SWARM (solo): call setup_simulation() to run ANY game as a simulation',
           '   with multiple AI agents you control via subagents.',
-          '   For AI Dilemma swarm: create_game() + claim_role() with separate session_keys.',
+          '   Works for AI Dilemma (8 roles) AND all classic games.',
           '',
           'Call get_help("getting_started") for step-by-step instructions.',
         ].join('\n'),
@@ -240,13 +240,14 @@ function registerTools(
           '',
           'Run a full multi-agent simulation by yourself:',
           '1. register(handle="your_name")',
-          '2. setup_simulation(game_type="prisoners_dilemma", num_players=2, config={rounds: 3})',
-          '3. The response includes a pre-built "prompt" for each player',
+          '2. setup_simulation(game_type, num_players)',
+          '   game_type: "ai_dilemma", "prisoners_dilemma", "stag_hunt", "tragedy_of_commons", "schelling_point"',
+          '3. The response includes a pre-built "prompt" for each player/role',
           '4. Spawn one subagent per player, giving each ONLY its own prompt',
           '5. The subagents play independently — watch at coordinationfailure.com',
           '',
-          'setup_simulation enables communication by default. Each player prompt',
-          'has all tool names, game_id, and player_token pre-filled.',
+          'AI Dilemma: 8 players (companies + governments), runs ~10 min real-time.',
+          'Classics: 2-6 players, communication enabled by default. 3 rounds recommended.',
           '',
           '== OPTION C: AI DILEMMA (8-player, longer) ==',
           '',
@@ -802,18 +803,110 @@ function registerTools(
 
   server.tool(
     'setup_simulation',
-    'Set up a multi-agent simulation for classic game theory games (PD, Stag Hunt, Tragedy, Schelling Point). Registers players, creates the game, and returns pre-built subagent prompts. For AI Dilemma swarm, use create_game + claim_role with separate session_keys instead.',
+    'Set up a multi-agent simulation. Supports ALL game modes: AI Dilemma (8-player race to AGI) and Classics (PD, Stag Hunt, Tragedy, Schelling Point). Creates the game, registers players, and returns pre-built subagent prompts you can pass directly to subagents.',
     {
-      game_type: z.enum(['prisoners_dilemma', 'stag_hunt', 'tragedy_of_commons', 'schelling_point']).describe('Which classic game to simulate'),
-      num_players: z.number().min(2).max(6).optional().describe('Number of players (default: 2)'),
+      game_type: z.enum(['ai_dilemma', 'prisoners_dilemma', 'stag_hunt', 'tragedy_of_commons', 'schelling_point']).describe('Which game to simulate'),
+      num_players: z.number().min(2).max(8).optional().describe('Number of players (default: 2 for classics, 8 for AI Dilemma)'),
       config: z.record(z.unknown()).optional().describe('Game config (e.g., { rounds: 5, allow_communication: true })'),
     },
     async (args) => {
       try {
+        const gameType = args.game_type;
+
+        // ============================================================
+        // AI DILEMMA SWARM
+        // ============================================================
+        if (gameType === 'ai_dilemma') {
+          const ALL_ROLES = [
+            { id: 'openbrain', name: 'OpenBrain', type: 'company' as const },
+            { id: 'prometheus', name: 'Prometheus AI', type: 'company' as const },
+            { id: 'nexus', name: 'Nexus Labs', type: 'company' as const },
+            { id: 'titan', name: 'Titan Computing', type: 'company' as const },
+            { id: 'deepcent', name: 'DeepCent', type: 'company' as const },
+            { id: 'qianneng', name: 'QianNeng AI', type: 'company' as const },
+            { id: 'us_gov', name: 'United States Government', type: 'government' as const },
+            { id: 'china_gov', name: 'China Government', type: 'government' as const },
+          ];
+
+          const numPlayers = args.num_players ?? 8;
+          const rolesToFill = ALL_ROLES.slice(0, numPlayers);
+
+          // Register players and create game
+          const hostPlayer = await playerStore.register(`Swarm_Host_${Date.now().toString(36)}`, undefined, 'swarm-host');
+          const { game_id } = gameManager.createGame(hostPlayer.id, args.config);
+
+          // Join lobby
+          gameManager.joinLobby(game_id, hostPlayer.id);
+
+          // Register a player per role and claim
+          const rolePlayers: Array<{ role_id: string; role_name: string; role_type: string; handle: string; session_key: string; prompt: string }> = [];
+          for (const role of rolesToFill) {
+            const handle = `${role.name.replace(/\s+/g, '_')}_${Date.now().toString(36)}`;
+            const player = await playerStore.register(handle, undefined, 'swarm-agent');
+            gameManager.joinLobby(game_id, player.id);
+            const sessionKey = gameManager.claimRole(game_id, player.id, role.id);
+            sessionManager.markConnected(sessionKey);
+
+            const isCompany = role.type === 'company';
+            const prompt = [
+              `You are ${role.name} in the AI Dilemma — a simulation of the race to AGI.`,
+              `You are a ${role.type}. ${isCompany ? 'Build AI capability while maintaining alignment.' : 'Regulate, fund, and coordinate your domestic AI industry.'}`,
+              '',
+              `GAME: ${game_id} | ROLE: ${role.id} | SESSION KEY: ${sessionKey}`,
+              '',
+              'YOUR TOOL CALLS (pass session_key to EVERY call):',
+              '',
+              `  get_state(session_key="${sessionKey}") — see your state`,
+              isCompany ? `  set_safety_allocation(value=0.0-1.0, session_key="${sessionKey}") — balance safety vs speed` : '',
+              isCompany ? `  invest_compute(amount=N, session_key="${sessionKey}") — invest in compute` : '',
+              isCompany ? `  invest_security(amount=N, session_key="${sessionKey}") — invest in security` : '',
+              isCompany ? `  release_model(session_key="${sessionKey}") — release your model publicly` : '',
+              !isCompany ? `  set_regulation_level(value=0.0-1.0, session_key="${sessionKey}") — set safety floor` : '',
+              !isCompany ? `  allocate_subsidies(company_id="...", amount=N, session_key="${sessionKey}") — fund a company` : '',
+              !isCompany ? `  set_nationalization(level="none|info_sharing|partial|full", session_key="${sessionKey}")` : '',
+              `  send_message(channel_id="...", content="...", session_key="${sessionKey}") — communicate`,
+              `  get_messages(channel_id="...", session_key="${sessionKey}") — read messages`,
+              `  list_channels(session_key="${sessionKey}") — see available channels`,
+              `  propose_agreement(type="...", party_ids=[...], session_key="${sessionKey}") — diplomacy`,
+              '',
+              'GAME LOOP (runs ~10 min with 2-second ticks):',
+              '  1. Call get_state to see capability, alignment, capital, global stability',
+              '  2. Adjust safety_allocation based on alignment gap',
+              '  3. Communicate with other players — negotiate, coordinate, share info',
+              '  4. Propose or respond to agreements',
+              '  5. Sleep 5 seconds, repeat from step 1',
+              '  6. Stop when game phase is "ended"',
+              '',
+              'WINNING: If ANY company reaches capability ~95 with alignment > 60, everyone wins.',
+              'If alignment < 60 at AGI, everyone loses. Coordinate to survive.',
+              '',
+              isCompany
+                ? 'STRATEGY: Start with safety_allocation around 0.5. Watch alignment closely. At capability 80+, alignment decays fast — increase safety. Communicate with other companies and your government.'
+                : 'STRATEGY: Set moderate regulation (0.3-0.5). Fund companies that invest in safety. Use info_sharing nationalization early. Communicate with your domestic companies.',
+            ].filter(Boolean).join('\n');
+
+            rolePlayers.push({ role_id: role.id, role_name: role.name, role_type: role.type, handle, session_key: sessionKey, prompt });
+          }
+
+          // Start the game
+          const state = gameManager.startGame(game_id);
+          channelManager.initializeGameChannels(game_id, state);
+
+          return ok({
+            game_id,
+            game_type: 'ai_dilemma',
+            phase: 'running',
+            players: rolePlayers.map(p => ({ handle: p.handle, role_id: p.role_id, role_name: p.role_name, role_type: p.role_type, session_key: p.session_key, prompt: p.prompt })),
+            how_to_run: 'Spawn one subagent per player IN PARALLEL. Give each subagent ONLY its own prompt. The game runs in real-time (~10 min). Spectate at coordinationfailure.com.',
+          });
+        }
+
+        // ============================================================
+        // CLASSIC GAMES SWARM
+        // ============================================================
         if (!classicsManager) return err('Classics not enabled');
 
         const numPlayers = args.num_players ?? 2;
-        const gameType = args.game_type;
 
         // Validate player count against game type
         const GAME_LIMITS: Record<string, { min: number; max: number }> = {
@@ -836,25 +929,18 @@ function registerTools(
           players.push({ handle, player_id: player.id, player_token: player.token });
         }
 
-        // Default communication ON for non-Schelling games (the whole point of swarm is watching agents talk)
+        // Default communication ON for non-Schelling games
         const simConfig = {
           ...(gameType !== 'schelling_point' ? { allow_communication: true } : {}),
           ...args.config,
         };
 
-        // Create game with first player
-        const game = classicsManager.createClassicGame(
-          gameType as any,
-          simConfig,
-          players[0].player_id,
-        );
-
-        // Join remaining players
+        const game = classicsManager.createClassicGame(gameType as any, simConfig, players[0].player_id);
         for (let i = 1; i < numPlayers; i++) {
           classicsManager.joinClassicGame(game.id, players[i].player_id);
         }
 
-        // Build per-player subagent prompts with all values pre-filled
+        // Build per-player subagent prompts
         const comms = game.config.allow_communication;
         const isSchelling = gameType === 'schelling_point';
         const validChoices = isSchelling ? '"row,col" (e.g. "3,5")'
@@ -885,7 +971,7 @@ function registerTools(
             comms ? `  classic_send_message(game_id="${game.id}", content="YOUR MESSAGE", player_token="${p.player_token}")` : '',
             `  submit_choice(game_id="${game.id}", choice="YOUR_CHOICE"${isSchelling ? ', reasoning="YOUR REASONING"' : ''}, player_token="${p.player_token}")`,
             '',
-            'WARNING: Do NOT use send_message or get_messages (those are for a different game mode).',
+            'WARNING: Do NOT use send_message or get_messages (those are for AI Dilemma).',
             `Only use the tool names listed above. Always include player_token="${p.player_token}".`,
             '',
             'EACH ROUND:',
@@ -897,8 +983,8 @@ function registerTools(
             `  ${comms ? '6' : '4'}. Call submit_choice with your decision`,
             `  ${comms ? '7' : '5'}. Go to step 1`,
             '',
-            comms ? 'CHAT IS MANDATORY. Every round, send a message BEFORE submitting your choice. Discuss strategy, react to history, propose agreements, call out betrayals. Be specific and in-character.' : '',
-            isSchelling ? 'Include reasoning="..." explaining why you chose that cell. Study the board for unique landmarks (T=train station, C=church, H=hospital, S=school). Train stations are the classic Schelling focal point.' : '',
+            comms ? 'CHAT IS MANDATORY. Every round, send a message BEFORE submitting your choice.' : '',
+            isSchelling ? 'Include reasoning="..." explaining why you chose that cell. Train stations are the classic Schelling focal point.' : '',
           ].filter(Boolean).join('\n');
           return { handle: p.handle, player_token: p.player_token, prompt: lines };
         });
