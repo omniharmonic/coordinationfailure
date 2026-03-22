@@ -49,6 +49,8 @@ export interface ClassicGameSession {
   ended_by_depletion?: boolean;
   /** Schelling Point: current board for this round */
   current_board?: SchellingBoard;
+  /** Last activity timestamp (choice submission or message) */
+  last_activity: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +159,41 @@ export class ClassicsManager {
   private games = new Map<string, ClassicGameSession>();
   private gameEndCallbacks: ClassicGameEndCallback[] = [];
 
+  constructor() {
+    // Clean up stale classic games every 60 seconds
+    setInterval(() => this.cleanStaleGames(), 60_000);
+  }
+
+  /** Remove waiting lobbies (5 min) and inactive playing games (10 min) */
+  private cleanStaleGames(): void {
+    const now = Date.now();
+    const FIVE_MINUTES = 5 * 60 * 1000;
+    const TEN_MINUTES = 10 * 60 * 1000;
+
+    for (const [id, game] of this.games) {
+      if (game.phase === 'complete') {
+        // Remove completed games after 30 minutes to free memory
+        if (now - game.last_activity > 30 * 60 * 1000) {
+          this.games.delete(id);
+        }
+        continue;
+      }
+
+      if (game.phase === 'waiting' && now - game.created_at.getTime() > FIVE_MINUTES) {
+        console.log(`[CF] Cleaning stale classic lobby ${id.slice(0, 16)} (${game.type}, age ${Math.round((now - game.created_at.getTime()) / 60000)}min)`);
+        this.games.delete(id);
+        continue;
+      }
+
+      if (game.phase === 'playing' && now - game.last_activity > TEN_MINUTES) {
+        console.log(`[CF] Cleaning inactive classic game ${id.slice(0, 16)} (${game.type}, inactive ${Math.round((now - game.last_activity) / 60000)}min)`);
+        game.phase = 'complete';
+        this.fireGameEndCallbacks(game);
+        continue;
+      }
+    }
+  }
+
   /** Register a callback that fires when ANY classic game completes. */
   onGameComplete(callback: ClassicGameEndCallback): void {
     this.gameEndCallbacks.push(callback);
@@ -230,6 +267,7 @@ export class ClassicsManager {
       phase: 'waiting',
       messages: [],
       created_at: new Date(),
+      last_activity: Date.now(),
     };
 
     // Initialize tragedy-specific fields
@@ -309,6 +347,7 @@ export class ClassicsManager {
     }
 
     game.pending_choices[playerId] = choice;
+    game.last_activity = Date.now();
     if (reasoning) {
       game.pending_reasoning[playerId] = reasoning;
     }
@@ -426,6 +465,7 @@ export class ClassicsManager {
       content,
       timestamp: Date.now(),
     });
+    game.last_activity = Date.now();
 
     return { sent: true };
   }
