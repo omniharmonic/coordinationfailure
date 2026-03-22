@@ -338,10 +338,12 @@ function registerTools(
           '',
           'CREATE DMs for private negotiations: create_channel(type="dm", invite_ids=["other_role_id"])',
           'CREATE GROUP CHATS for coalitions: create_channel(type="group", invite_ids=["role1", "role2"])',
+          '  Group examples: a 3-company safety coalition, a cross-border alliance between a gov + foreign company, all companies excluding one uncooperative rival.',
           '',
           'USE COMMUNICATION AGGRESSIVELY:',
           '  - Message your national channel every few ticks to coordinate with allies',
-          '  - DM other companies to propose secret deals',
+          '  - DM other companies to propose secret deals or lobby governments',
+          '  - Create GROUP CHATS to broker multi-party agreements — e.g. pull 3 companies into a safety coalition, or form a cross-border group with a foreign government',
           '  - Broadcast warnings on the public channel when alignment is at risk',
           '  - Form back-channel alliances that other players don\'t know about',
           '  - Call out players who are racing unsafely — social pressure works',
@@ -362,9 +364,9 @@ function registerTools(
           '',
           '== STRATEGY ==',
           '',
-          'COMPANIES: Start safety at 0.3-0.4. At capability 80+, raise to 0.6-0.8 or alignment will collapse. Message your government for subsidies. Propose safety pacts with other companies. Create DMs for private deals.',
+          'COMPANIES: Start safety at 0.3-0.4. At capability 80+, raise to 0.6-0.8 or alignment will collapse. Message your government for subsidies. Propose safety pacts with other companies. Create DMs for private deals. Form a GROUP CHAT with like-minded companies to coordinate a joint safety commitment — a 3-company coalition is more credible than bilateral pacts.',
           '',
-          'GOVERNMENTS: Set regulation 0.2-0.3 early, increase to 0.4+ in late game. Fund companies that invest in safety. Use espionage on foreign entities to monitor their progress. Coordinate with domestic companies via national channel.',
+          'GOVERNMENTS: Set regulation 0.2-0.3 early, increase to 0.4+ in late game. Fund companies that invest in safety. Use espionage on foreign entities to monitor their progress. Create a GROUP CHAT with your domestic companies for private coordination beyond the national channel. Consider a cross-border group with the other government to negotiate international frameworks.',
           '',
           'COMMON MISTAKES: Setting safety to 0 (alignment collapses). Ignoring the alignment gap (capability - alignment > 20 = danger). NOT COMMUNICATING (the #1 cause of failed games). Over-regulating early (cripples domestic companies).',
           '',
@@ -772,10 +774,13 @@ function registerTools(
       try {
         const { game_id, role_id } = requireGame(args.session_key);
         const channels = channelManager.listChannels(game_id, role_id);
-        const hasDMs = channels.some(c => c.type === 'dm' || c.type === 'group');
+        const hasDMs = channels.some(c => c.type === 'dm');
+        const hasGroups = channels.some(c => c.type === 'group');
         const result: any = { channels };
-        if (!hasDMs) {
+        if (!hasDMs && !hasGroups) {
           result.tip = 'You have no DMs or group chats yet. Create private channels for secret negotiations: create_channel(type="dm", invite_ids=["role_id"]). DMs are where the real deals happen.';
+        } else if (!hasGroups) {
+          result.tip = 'Consider creating a GROUP CHAT for coalition-building: create_channel(type="group", invite_ids=["role1","role2"]). Groups let you broker multi-party agreements — e.g. a 3-company safety pact or a cross-border alliance.';
         }
         return ok(result);
       } catch (e: any) { return err(e.message); }
@@ -784,7 +789,7 @@ function registerTools(
 
   server.tool(
     'create_channel',
-    'Create a private DM or group channel for secret negotiations. DMs let you make deals other players can\'t see. Use invite_ids with role IDs like "openbrain", "us_gov", etc.',
+    'Create a private DM or group channel. type="dm" for 1-on-1 secret deals. type="group" for multi-party coalitions — pull 3+ players into a private chat to broker agreements, coordinate strategy, or form alliances. Use role IDs like "openbrain", "us_gov", "prometheus" in invite_ids.',
     { type: z.enum(['dm', 'group']), invite_ids: z.array(z.string()), session_key: sk },
     async (args) => {
       try {
@@ -979,12 +984,22 @@ function registerTools(
               isCompany ? `  - Your NATIONAL channel (${isUS ? 'US' : 'China'} companies + gov) — coordinate with allies` : `  - Your NATIONAL channel (${isUS ? 'US' : 'China'} gov + domestic companies) — issue directives, gather intel`,
               '  - PUBLIC broadcast channel — all players see this, use for warnings and public diplomacy',
               '',
-              'CREATE DMs for private negotiations and secret deals:',
+              'CREATE DMs for private 1-on-1 negotiations:',
               isCompany ? `  create_channel(type="dm", invite_ids=["${isUS ? 'us_gov' : 'china_gov'}"], session_key="${sessionKey}") — lobby your government` : `  create_channel(type="dm", invite_ids=["${domesticCompanies.split(', ')[0]}"], session_key="${sessionKey}") — private orders to a company`,
               isCompany ? `  create_channel(type="dm", invite_ids=["${isUS ? 'prometheus' : 'deepcent'}"], session_key="${sessionKey}") — secret deal with a rival` : `  create_channel(type="dm", invite_ids=["${foreignGov}"], session_key="${sessionKey}") — back-channel with rival government`,
               '',
+              'CREATE GROUP CHATS to form coalitions with 3+ players:',
+              isCompany && isUS
+                ? `  create_channel(type="group", invite_ids=["prometheus","nexus"], session_key="${sessionKey}") — safety coalition with allied companies`
+                : isCompany
+                ? `  create_channel(type="group", invite_ids=["deepcent","qianneng"], session_key="${sessionKey}") — safety coalition with allied companies`
+                : `  create_channel(type="group", invite_ids=["${domesticCompanies.split(', ').join('","')}"], session_key="${sessionKey}") — private group with all your domestic companies`,
+              isCompany
+                ? `  create_channel(type="group", invite_ids=["${isUS ? 'us_gov","titan' : 'china_gov","deepcent'}"], session_key="${sessionKey}") — alliance with your government + another company`
+                : `  create_channel(type="group", invite_ids=["${foreignGov}","${domesticCompanies.split(', ')[0]}"], session_key="${sessionKey}") — cross-border negotiation group`,
+              '',
               'COMMUNICATE EVERY ROUND. Send messages on national AND public channels.',
-              'Create DMs for secret deals. Form coalitions. Betray alliances. This is what makes the simulation come alive.',
+              'Create DMs for secret deals. Form GROUP coalitions to broker multi-party agreements. This is what makes the simulation come alive.',
               '',
               '== GAME LOOP ==',
               '',
@@ -1001,8 +1016,8 @@ function registerTools(
               'Alignment < 60 at AGI = everyone loses. COORDINATE TO SURVIVE.',
               '',
               isCompany
-                ? `STRATEGY: Start safety at 0.3-0.4. Build alignment buffer early while it's cheap. At capability 80+, raise to 0.6-0.8 or alignment WILL collapse. DM your government for subsidies. Propose safety pacts with other companies. Create back-channel DMs with rivals. If you see someone racing ahead unsafely, call them out publicly.`
-                : `STRATEGY: Set regulation 0.2-0.3 early to allow growth, increase to 0.4+ in late game. Fund companies that invest in safety via allocate_subsidies. Use info_sharing nationalization to see what your companies are doing. Use espionage on ${foreignGov} to monitor foreign progress. Message your national channel EVERY ROUND to coordinate with domestic companies. Create DMs with individual companies for private directives.`,
+                ? `STRATEGY: Start safety at 0.3-0.4. Build alignment buffer early while it's cheap. At capability 80+, raise to 0.6-0.8 or alignment WILL collapse. DM your government for subsidies. Propose safety pacts with other companies. Create back-channel DMs with rivals. Create a GROUP CHAT with 2-3 like-minded companies to form a safety coalition — multi-party commitments are stronger than bilateral ones. If you see someone racing ahead unsafely, call them out publicly.`
+                : `STRATEGY: Set regulation 0.2-0.3 early to allow growth, increase to 0.4+ in late game. Fund companies that invest in safety via allocate_subsidies. Use info_sharing nationalization to see what your companies are doing. Use espionage on ${foreignGov} to monitor foreign progress. Create a GROUP CHAT with your domestic companies for private coordination. Create a cross-border GROUP with ${foreignGov} to negotiate international safety frameworks. Message your channels EVERY ROUND.`,
             ].filter(Boolean).join('\n');
 
             rolePlayers.push({ role_id: role.id, role_name: role.name, role_type: role.type, handle, session_key: sessionKey, prompt });
