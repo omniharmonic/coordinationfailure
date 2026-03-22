@@ -21,6 +21,15 @@ export function getRAndDMultiplier(capability: number): number {
 /** Generation thresholds */
 const GENERATION_THRESHOLDS = [20, 40, 60, 80, 95];
 
+/** Warning messages at each generation boundary */
+const GENERATION_WARNINGS: Record<number, string> = {
+  1: 'Gen 1 reached. Alignment manageable. Establish safety practices now.',
+  2: 'Gen 2 reached. Alignment decay accelerates. Safety 0.4+ recommended. Consider safety pacts.',
+  3: 'CRITICAL: Gen 3. R&D jumps to 3.0x. Incidents more likely. Raise safety to 0.5+.',
+  4: 'DANGER ZONE: Gen 4. R&D 5.5x. Alignment collapses without safety 0.6+. Last chance.',
+  5: 'AGI IMMINENT: Gen 5. If alignment < 60, you trigger misaligned AGI. Safety to maximum.',
+};
+
 export function getGeneration(capability: number): number {
   let gen = 0;
   for (const threshold of GENERATION_THRESHOLDS) {
@@ -131,6 +140,7 @@ export function computeDevelopment(
       company_id: company.id,
       generation: newGeneration,
       tick: state.world.tick_count,
+      description: GENERATION_WARNINGS[newGeneration],
     });
   }
 

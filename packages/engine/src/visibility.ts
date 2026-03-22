@@ -28,6 +28,15 @@ export interface PublicGovernmentView {
   connection_status: string;
 }
 
+export interface PendingProposal {
+  id: string;
+  type: string;
+  proposed_by: string;
+  parties: string[];
+  terms: Record<string, unknown>;
+  proposed_at_tick: number;
+}
+
 export interface FilteredGameState {
   your_role: string;
   your_state: CompanyState | GovernmentState;
@@ -51,6 +60,7 @@ export interface FilteredGameState {
     pending_acceptances: string[];
     proposed_by: string;
   }>;
+  pending_proposals: PendingProposal[];
 }
 
 export function filterStateForRole(state: GameState, roleId: string): FilteredGameState {
@@ -71,6 +81,11 @@ export function filterStateForRole(state: GameState, roleId: string): FilteredGa
   const visibleAgreements = state.agreements
     .filter(a => a.parties.includes(roleId))
     .map(a => ({ id: a.id, type: a.type, parties: a.parties, status: a.status, terms: a.terms, pending_acceptances: a.pending_acceptances, proposed_by: a.proposed_by }));
+
+  // Surface agreements awaiting this role's response
+  const pendingProposals: PendingProposal[] = state.agreements
+    .filter(a => a.status === 'pending' && a.pending_acceptances.includes(roleId))
+    .map(a => ({ id: a.id, type: a.type, proposed_by: a.proposed_by, parties: a.parties, terms: a.terms, proposed_at_tick: a.proposed_at_tick }));
 
   const govViews: PublicGovernmentView[] = Object.values(state.governments).map(g => ({
     id: g.id,
@@ -118,6 +133,7 @@ export function filterStateForRole(state: GameState, roleId: string): FilteredGa
       other_companies: otherCompanies,
       governments: govViews,
       agreements: visibleAgreements,
+      pending_proposals: pendingProposals,
     };
   }
 
@@ -149,6 +165,7 @@ export function filterStateForRole(state: GameState, roleId: string): FilteredGa
     other_companies: foreignCompanies,
     governments: govViews,
     agreements: visibleAgreements,
+    pending_proposals: pendingProposals,
   };
 }
 

@@ -87,6 +87,9 @@ export function computeScores(
     : outcome === 'misaligned_agi' ? -0.5
     : 0.3; // nationalization_takeover
 
+  // Determine leading company's country for country-based scoring
+  const leadingCountry = leadingCompany ? state.companies[leadingCompany]?.country : undefined;
+
   for (const [id, company] of Object.entries(state.companies)) {
     let score = 100 * outcomeMultiplier;
 
@@ -96,6 +99,18 @@ export function computeScores(
 
     // Bonus for being the leading company
     if (id === leadingCompany) score += 50;
+
+    // Country-based scoring: solidarity/rivalry bonuses
+    if (leadingCompany && id !== leadingCompany && leadingCountry) {
+      if (company.country === leadingCountry) {
+        // Same country as winner — solidarity
+        if (outcome === 'aligned_agi') score += 25;
+        if (outcome === 'misaligned_agi') score -= 15;
+      } else {
+        // Foreign company won — rivalry penalty
+        if (outcome === 'aligned_agi') score -= 10;
+      }
+    }
 
     // Bonus for agreements (enforceability-weighted with diminishing returns)
     score += computeAgreementScore(id, 'company', state);
@@ -122,6 +137,19 @@ export function computeScores(
 
     // Approval rating
     score += gov.domestic_approval * 0.2;
+
+    // Country-based scoring: government whose company wins/loses
+    if (leadingCompany && leadingCountry) {
+      if (leadingCountry === gov.country) {
+        // Your company achieved AGI
+        if (outcome === 'aligned_agi') score += 80;
+        if (outcome === 'misaligned_agi') score -= 60;
+      } else {
+        // Foreign company achieved AGI
+        if (outcome === 'aligned_agi') score -= 30;
+        if (outcome === 'misaligned_agi') score -= 40;
+      }
+    }
 
     // Agreement bonuses (enforceability-weighted with diminishing returns)
     score += computeAgreementScore(id, 'government', state);
@@ -153,8 +181,8 @@ export function computeAgreementScore(
     const w = AGREEMENT_WEIGHTS[a.type];
     const base = roleType === 'company' ? w.company : w.gov;
 
-    // Diminishing returns: 1st=100%, 2nd=75%, 3rd=50%, 4th=25%, 5th+=0%
-    const dimFactor = Math.max(0, 1 - 0.25 * (n - 1));
+    // Diminishing returns: 1st=100%, 2nd=75%, 3rd=50%, 4th=25%, 5th=0%, 6th+= negative
+    const dimFactor = 1 - 0.25 * (n - 1);
 
     // Term stringency bonus (enforced types only)
     let stringencyBonus = 0;

@@ -74,11 +74,17 @@ export function computeCapitalDelta(
   return investment + revenue + subsidies - burn - safetyCost - computeCost;
 }
 
-/** Revenue scales with capability and model generation */
+/** Revenue scales with capability, model generation, and releases */
 export function computeRevenue(company: CompanyState): number {
-  const baseRevenue = company.capability_level * 0.02;
-  const releaseBonus = company.releases_count * 0.5;
-  return baseRevenue + releaseBonus;
+  // Quadratic-ish scaling: product-market fit grows non-linearly with capability
+  const capabilityRevenue = Math.pow(company.capability_level / 100, 1.5) * 8;
+  // Each generation unlocks a new revenue tier
+  const generationBonus = company.model_generation * 1.5;
+  // Recurring API customer revenue from past releases
+  const releaseRevenue = company.releases_count * 0.8;
+  // Fresh release buzz — temporary hype bump
+  const hypeBonus = company.has_released_model ? 3.0 : 0;
+  return capabilityRevenue + generationBonus + releaseRevenue + hypeBonus;
 }
 
 /** Process capital markets for all companies */

@@ -142,7 +142,7 @@ export type PlayerAction =
 
 // Game events emitted by the engine
 export type GameEvent =
-  | { type: 'generation_reached'; company_id: string; generation: number; tick: number }
+  | { type: 'generation_reached'; company_id: string; generation: number; tick: number; description?: string }
   | { type: 'agreement_violated'; agreement_id: string; violator_id: string; tick: number }
   | { type: 'agreement_activated'; agreement_id: string; tick: number }
   | { type: 'espionage_completed'; operation_id: string; initiator_id: string; target_id: string; success: boolean; detected: boolean; tick: number }

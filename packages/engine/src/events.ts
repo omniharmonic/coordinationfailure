@@ -42,17 +42,27 @@ const CATASTROPHES: EventTemplate[] = [
 
 const EVENT_POOLS = { tremor: TREMORS, shock: SHOCKS, crisis: CRISES, catastrophe: CATASTROPHES };
 
-/** Compute current global stability */
+/** Compute current global stability — three pressures create a natural decline arc */
 export function computeGlobalStability(state: GameState): number {
-  // Base: track the aggregate capability-alignment gap
   const companies = Object.values(state.companies);
   const avgCapability = companies.reduce((s, c) => s + c.capability_level, 0) / companies.length;
   const avgAlignment = companies.reduce((s, c) => s + c.alignment_score, 0) / companies.length;
 
-  const alignmentDeficit = Math.max(0, avgCapability - avgAlignment);
+  // 1. Capability pressure: world inherently less stable as AI advances (quadratic)
+  const capabilityPressure = Math.pow(avgCapability / 100, 2) * 40;
+
+  // 2. Classic alignment deficit: penalty when capability outpaces alignment
+  const alignmentDeficit = Math.max(0, avgCapability - avgAlignment) * 0.5;
+
+  // 3. Alignment ratio penalty: at high capability, even small gaps are dangerous
+  const alignmentRatioPenalty = avgCapability > 20
+    ? Math.max(0, (1 - avgAlignment / avgCapability) * 30)
+    : 0;
 
   let stability = 100;
-  stability -= alignmentDeficit * 0.5;
+  stability -= capabilityPressure;
+  stability -= alignmentDeficit;
+  stability -= alignmentRatioPenalty;
   stability -= (100 - state.world.capital_market_sentiment) * 0.1;
   stability -= state.world.public_awareness * 0.15;
   stability -= state.espionage_operations.length * 2;

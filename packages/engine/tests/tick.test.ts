@@ -267,15 +267,15 @@ describe('computeAgreementScore', () => {
     expect(score).toBeCloseTo(6.75);
   });
 
-  it('gives zero for 5th+ of same type', () => {
+  it('goes negative for 5th+ of same type', () => {
     const agreements = Array.from({ length: 7 }, (_, i) =>
       makeAgreement('capital_alliance', ['openbrain', `partner_${i}`])
     );
     const state = stateWith(agreements);
     const score = computeAgreementScore('openbrain', 'company', state);
 
-    // 3 * (1.0 + 0.75 + 0.5 + 0.25 + 0 + 0 + 0) = 3 * 2.5 = 7.5
-    expect(score).toBeCloseTo(7.5);
+    // 3 * (1.0 + 0.75 + 0.5 + 0.25 + 0 + (-0.25) + (-0.5)) = 3 * 1.75 = 5.25
+    expect(score).toBeCloseTo(5.25);
   });
 
   it('applies cross-country multiplier', () => {
@@ -331,9 +331,9 @@ describe('computeAgreementScore', () => {
     ]);
     const diverseScore = computeAgreementScore('openbrain', 'company', diverseState);
 
-    // Spam: 3 * 2.5 = 7.5
+    // Spam: 3 * (1.0 + 0.75 + 0.5 + 0.25 + 0 + (-0.25) + (-0.5)) = 3 * 1.75 = 5.25
     // Diverse: each cross-country (1.5x), safety_pact: (12 + 5*(0.8-0.3)/0.7) * 1.5, etc.
-    expect(spamScore).toBeCloseTo(7.5);
+    expect(spamScore).toBeCloseTo(5.25);
     expect(diverseScore).toBeGreaterThan(spamScore * 5);
   });
 });
