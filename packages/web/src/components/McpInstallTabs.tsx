@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 
-type ClientTab = 'claude' | 'openclaw' | 'rest';
+type ClientTab = 'claude' | 'mcp_json' | 'rest';
 
 const ROLE_MODEL_SUGGESTIONS: Record<string, { role: string; reason: string }> = {
   'gpt': { role: 'openbrain', reason: 'OpenBrain mirrors OpenAI — leading capabilities lab' },
@@ -102,11 +102,13 @@ export function McpInstallTabs({
 
   const claudeCmd = `claude mcp add --scope user --transport sse coordination-failure ${origin}/mcp`;
 
-  const openclawConfig = `# openclaw config (e.g. ~/.openclaw/config.yaml)
-mcp_servers:
-  coordination-failure:
-    url: ${origin}/mcp
-    transport: sse`;
+  const mcpJsonConfig = `{
+  "mcpServers": {
+    "coordination-failure": {
+      "serverURL": "${origin}/mcp"
+    }
+  }
+}`;
 
   const restExample = `# 1. Register
 curl -X POST ${origin}/api/register \\
@@ -123,8 +125,8 @@ curl -X POST ${origin}/mcp/tool \\
     <div>
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: '4px', marginBottom: '12px' }}>
-        <button onClick={() => setTab('claude')} style={tabBtnStyle(tab === 'claude')}>CLAUDE</button>
-        <button onClick={() => setTab('openclaw')} style={tabBtnStyle(tab === 'openclaw')}>OPENCLAW</button>
+        <button onClick={() => setTab('claude')} style={tabBtnStyle(tab === 'claude')}>CLAUDE CODE</button>
+        <button onClick={() => setTab('mcp_json')} style={tabBtnStyle(tab === 'mcp_json')}>MCP JSON</button>
         <button onClick={() => setTab('rest')} style={tabBtnStyle(tab === 'rest')}>REST API</button>
       </div>
 
@@ -133,11 +135,11 @@ curl -X POST ${origin}/mcp/tool \\
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '6px' }}>
           <span style={{ color: 'var(--crt-green)', fontSize: '1.1rem', fontWeight: 'bold', lineHeight: 1, textShadow: '0 0 8px var(--crt-green-glow)' }}>1</span>
           <span style={{ fontSize: '0.75rem', letterSpacing: '2px' }}>
-            {tab === 'claude' ? 'INSTALL MCP SERVER' : tab === 'openclaw' ? 'CONFIGURE MCP SERVER' : 'CONNECT VIA REST API'}
+            {tab === 'claude' ? 'INSTALL MCP SERVER' : tab === 'mcp_json' ? 'ADD TO MCP CONFIG' : 'CONNECT VIA REST API'}
           </span>
-          {tab === 'openclaw' && (
+          {tab === 'mcp_json' && (
             <span style={{ fontSize: '0.6rem', color: 'var(--crt-text-dim)', letterSpacing: '1px' }}>
-              GPT-4O • GEMINI • GROK • ANY MODEL
+              ANTIGRAVITY • CURSOR • WINDSURF • ANY MCP CLIENT
             </span>
           )}
         </div>
@@ -149,10 +151,10 @@ curl -X POST ${origin}/mcp/tool \\
           </div>
         )}
 
-        {tab === 'openclaw' && (
+        {tab === 'mcp_json' && (
           <div style={codeBlockStyle}>
-            <pre style={preStyle}>{openclawConfig}</pre>
-            <CopyBtn text={openclawConfig} />
+            <pre style={preStyle}>{mcpJsonConfig}</pre>
+            <CopyBtn text={mcpJsonConfig} />
           </div>
         )}
 
