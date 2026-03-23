@@ -221,6 +221,7 @@ export class GameManager {
     const state = this.games.get(gameId)!;
     const { tick_interval_ms } = TIME_SPEED_PRESETS[state.config.time_speed];
     let tickNumber = 1;
+    let consecutiveErrors = 0;
 
     const interval = setInterval(() => {
       const currentState = this.games.get(gameId);
@@ -273,9 +274,23 @@ export class GameManager {
             }
           }, 5 * 60 * 1000);
         }
+        consecutiveErrors = 0;
       } catch (err) {
-        console.error(`[CF] Tick ${tickNumber} crashed for game ${gameId.slice(0, 8)}:`, err);
-        // Skip this tick but keep the loop alive
+        consecutiveErrors++;
+        console.error(`[CF] Tick ${tickNumber} crashed for game ${gameId.slice(0, 8)} (${consecutiveErrors} consecutive):`, err);
+        // If tick fails 10 times in a row, end the game to prevent infinite silent hang
+        if (consecutiveErrors >= 10) {
+          console.error(`[CF] Game ${gameId.slice(0, 8)} killed after ${consecutiveErrors} consecutive tick failures`);
+          clearInterval(interval);
+          this.runners.delete(gameId);
+          this.actionBuffers.delete(gameId);
+          // Mark game as ended with error state
+          if (currentState) {
+            currentState.phase = 'ended';
+            currentState.outcome = 'timeout';
+            currentState.scores = {};
+          }
+        }
       }
     }, tick_interval_ms);
 

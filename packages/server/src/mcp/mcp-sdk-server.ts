@@ -672,7 +672,7 @@ function registerTools(
   server.tool(
     'propose_agreement',
     'Propose a binding agreement.',
-    { type: z.string(), party_ids: z.array(z.string()), terms: z.record(z.unknown()).optional(), duration: z.number().optional(), session_key: sk },
+    { type: z.enum(['safety_pact', 'info_sharing', 'non_aggression', 'intl_safety_framework', 'joint_research', 'capital_alliance', 'nationalization_accord']).describe('Agreement type'), party_ids: z.array(z.string()), terms: z.record(z.unknown()).optional(), duration: z.number().optional(), session_key: sk },
     async (args) => {
       try {
         const { game_id, role_id } = requireGame(args.session_key);

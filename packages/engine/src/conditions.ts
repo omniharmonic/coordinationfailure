@@ -178,6 +178,7 @@ export function computeAgreementScore(
     typeCounts[a.type] = n;
 
     const w = AGREEMENT_WEIGHTS[a.type];
+    if (!w) continue; // skip unknown agreement types
     const base = roleType === 'company' ? w.company : w.gov;
 
     // Diminishing returns: 1st=100%, 2nd=75%, 3rd=50%, 4th=25%, 5th=0%, 6th+= negative
