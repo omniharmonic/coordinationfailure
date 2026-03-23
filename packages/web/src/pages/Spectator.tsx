@@ -57,6 +57,7 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
   useEffect(() => {
     let wsInstance: WebSocket | null = null;
     let pollInterval: ReturnType<typeof setInterval> | null = null;
+    let lastWsMessage = 0; // timestamp of last WS message for heartbeat detection
 
     // Only update state if tick is moving forward (prevents WebSocket delay vs poll race)
     // Returns true if state was accepted, false if stale
@@ -72,8 +73,11 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
     const loadState = async () => {
       // Once game is over, stop fetching to prevent state thrashing
       if (gameOverRef.current) return;
+      // Heartbeat: if no WS message in 10s during a running game, assume WS is dead
+      if (wsAliveRef.current && lastWsMessage > 0 && Date.now() - lastWsMessage > 10000) {
+        wsAliveRef.current = false;
+      }
       // If WebSocket is delivering data, skip polling to avoid time-travel
-      // (WebSocket has a 10s delay; poll returns current state)
       if (wsAliveRef.current) return;
       try {
         const res = await fetch(`/api/games/${gameId}`);
@@ -112,7 +116,11 @@ export function Spectator({ gameId, onBack, onReplay }: { gameId: string; onBack
 
       wsInstance.onmessage = (event) => {
         if (gameOverRef.current) return;
-        wsAliveRef.current = true; // WebSocket is delivering — suppress polling
+        lastWsMessage = Date.now();
+        // Only mark WS alive if the connection is actually open (prevents race with onclose)
+        if (wsInstance?.readyState === WebSocket.OPEN) {
+          wsAliveRef.current = true;
+        }
         try {
           const msg = JSON.parse(event.data);
           if (msg.type === 'state' && msg.data?.companies) {

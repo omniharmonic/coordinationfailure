@@ -457,3 +457,11 @@ function shutdown(signal: string) {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
+
+// Global safety nets — prevent uncaught errors from crashing the server
+process.on('uncaughtException', (err) => {
+  console.error('[CF] Uncaught exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[CF] Unhandled rejection:', reason);
+});

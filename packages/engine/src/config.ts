@@ -207,7 +207,7 @@ export function createDefaultConfig(overrides?: Partial<GameConfig>): GameConfig
     max_players: 8,
     lobby_timeout_ms: 120_000,
     seed: Date.now(),
-    safety_cost_coefficient: 0.6,
+    safety_cost_coefficient: 0.85,
     alignment_decay_rate: 0.35,
     alignment_growth_rate: 0.18,
     global_investment_pool: 80,

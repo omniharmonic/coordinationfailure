@@ -42,34 +42,35 @@ const CATASTROPHES: EventTemplate[] = [
 
 const EVENT_POOLS = { tremor: TREMORS, shock: SHOCKS, crisis: CRISES, catastrophe: CATASTROPHES };
 
-/** Compute current global stability — three pressures create a natural decline arc */
+/** Compute current global stability — capability-driven chaos curve
+ *
+ * The world becomes inherently less stable as AI capability advances.
+ * Max capability (not average) is the primary driver — one frontrunner
+ * destabilizes the world for everyone. Alignment provides limited dampening
+ * and agreements are capped so cooperation can't fully prevent late-game chaos.
+ */
 export function computeGlobalStability(state: GameState): number {
   const companies = Object.values(state.companies);
-  const avgCapability = companies.reduce((s, c) => s + c.capability_level, 0) / companies.length;
+  const maxCapability = Math.max(...companies.map(c => c.capability_level));
   const avgAlignment = companies.reduce((s, c) => s + c.alignment_score, 0) / companies.length;
 
-  // 1. Capability pressure: world inherently less stable as AI advances (quadratic)
-  const capabilityPressure = Math.pow(avgCapability / 100, 2) * 40;
+  // Primary driver: aggressive capability pressure (^1.8 curve × 50)
+  const capabilityPressure = Math.pow(maxCapability / 100, 1.8) * 50;
 
-  // 2. Classic alignment deficit: penalty when capability outpaces alignment
-  const alignmentDeficit = Math.max(0, avgCapability - avgAlignment) * 0.5;
+  // Alignment provides SOME dampening, but capped at 15 points of relief
+  const alignmentDampening = Math.min(15, (avgAlignment / 100) * 20);
 
-  // 3. Alignment ratio penalty: at high capability, even small gaps are dangerous
-  const alignmentRatioPenalty = avgCapability > 20
-    ? Math.max(0, (1 - avgAlignment / avgCapability) * 30)
-    : 0;
+  // Agreements capped at +10 (not the old +36 from 18 agreements × 2)
+  const activeAgreements = state.agreements.filter(a => a.status === 'active').length;
+  const agreementBonus = Math.min(10, activeAgreements * 1.5);
 
   let stability = 100;
   stability -= capabilityPressure;
-  stability -= alignmentDeficit;
-  stability -= alignmentRatioPenalty;
+  stability += alignmentDampening;
+  stability += agreementBonus;
   stability -= (100 - state.world.capital_market_sentiment) * 0.1;
   stability -= state.world.public_awareness * 0.15;
   stability -= state.espionage_operations.length * 2;
-
-  // Active agreements improve stability
-  const activeAgreements = state.agreements.filter(a => a.status === 'active').length;
-  stability += activeAgreements * 2;
 
   return Math.max(0, Math.min(100, stability));
 }

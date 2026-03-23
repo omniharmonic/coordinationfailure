@@ -29,19 +29,23 @@ export function setupSpectatorWs(server: Server, wss: WebSocketServer, gameManag
 
       // Register for tick updates — send directly (no delay)
       const tickCallback = (state: any, events: any[]) => {
-        const payload = JSON.stringify({
-          type: 'tick',
-          data: {
-            state: serializeState(state),
-            events: events.filter(e => e.type !== 'espionage_completed'),
-          },
-        });
+        try {
+          const payload = JSON.stringify({
+            type: 'tick',
+            data: {
+              state: serializeState(state),
+              events: events.filter(e => e.type !== 'espionage_completed'),
+            },
+          });
 
-        const gameSpectators = spectators.get(gameId);
-        if (gameSpectators) {
-          for (const client of gameSpectators) {
-            try { client.send(payload); } catch (_e) { /* ignore closed connections */ }
+          const gameSpectators = spectators.get(gameId);
+          if (gameSpectators) {
+            for (const client of gameSpectators) {
+              try { client.send(payload); } catch (_e) { /* ignore closed connections */ }
+            }
           }
+        } catch (_e) {
+          // Prevent JSON.stringify errors from propagating to tick loop
         }
       };
 

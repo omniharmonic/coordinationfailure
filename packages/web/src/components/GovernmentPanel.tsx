@@ -33,7 +33,7 @@ export function GovernmentPanel({ gov }: { gov: GovData }) {
         </div>
         <div>
           <div style={{ color: 'var(--crt-text-dim)' }}>NATIONAL.</div>
-          <div style={{ fontSize: '0.85rem', textTransform: 'uppercase' }}>{gov.nationalization_status}</div>
+          <div style={{ fontSize: '0.85rem', textTransform: 'uppercase' }}>{gov.nationalization_status ?? 'NONE'}</div>
         </div>
         <div>
           <div style={{ color: 'var(--crt-text-dim)' }}>TREASURY</div>

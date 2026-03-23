@@ -67,8 +67,7 @@ export function checkEndConditions(state: GameState): EndCondition | null {
 }
 
 function determineAGIOutcome(alignmentScore: number): GameOutcome {
-  if (alignmentScore >= ALIGNMENT_TIERS.excellent) return 'aligned_agi';
-  if (alignmentScore >= ALIGNMENT_TIERS.good) return 'aligned_agi'; // Good but not great
+  if (alignmentScore >= ALIGNMENT_TIERS.good) return 'aligned_agi';
   return 'misaligned_agi';
 }
 
@@ -94,11 +93,11 @@ export function computeScores(
     let score = 100 * outcomeMultiplier;
 
     // Bonus for safety contribution
-    score += company.alignment_score * 0.5;
-    score += company.safety_allocation * 50;
+    score += company.alignment_score * 0.3;
+    score += company.safety_allocation * 20;
 
     // Bonus for being the leading company
-    if (id === leadingCompany) score += 50;
+    if (id === leadingCompany) score += 150;
 
     // Country-based scoring: solidarity/rivalry bonuses
     if (leadingCompany && id !== leadingCompany && leadingCountry) {

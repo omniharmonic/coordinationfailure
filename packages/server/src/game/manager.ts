@@ -233,44 +233,49 @@ export class GameManager {
       const actions = this.actionBuffers.get(gameId) ?? [];
       this.actionBuffers.set(gameId, []);
 
-      // Run tick
-      const result = tick({
-        current_state: currentState,
-        player_actions: actions,
-        tick_number: tickNumber++,
-      });
+      // Run tick (wrapped in try-catch to prevent process crash)
+      try {
+        const result = tick({
+          current_state: currentState,
+          player_actions: actions,
+          tick_number: tickNumber++,
+        });
 
-      // Store updated state
-      this.games.set(gameId, result.new_state);
+        // Store updated state
+        this.games.set(gameId, result.new_state);
 
-      // Notify callbacks
-      const callbacks = this.tickCallbacks.get(gameId) ?? [];
-      for (const cb of callbacks) {
-        try { cb(result.new_state, result.events); } catch (_e) { /* ignore */ }
-      }
-
-      // Log tick for analysis
-      this.gameLogger.logTick(gameId, tickNumber - 1, result.new_state, result.events);
-
-      // Check game over
-      if (result.new_state.phase === 'ended') {
-        clearInterval(interval);
-        this.runners.delete(gameId);
-        this.actionBuffers.delete(gameId);
-
-        // Fire game-end callbacks (leaderboard, analysis, knowledge base)
-        for (const cb of this.gameEndCallbacks) {
-          try { cb(gameId, result.new_state, result.events); } catch (_e) { /* ignore */ }
+        // Notify callbacks
+        const callbacks = this.tickCallbacks.get(gameId) ?? [];
+        for (const cb of callbacks) {
+          try { cb(result.new_state, result.events); } catch (_e) { /* ignore */ }
         }
 
-        // Keep ended game in memory for 5 minutes so spectators can see final state
-        setTimeout(() => {
-          const g = this.games.get(gameId);
-          if (g && g.phase === 'ended') {
-            this.games.delete(gameId);
-            this.tickCallbacks.delete(gameId);
+        // Log tick for analysis
+        this.gameLogger.logTick(gameId, tickNumber - 1, result.new_state, result.events);
+
+        // Check game over
+        if (result.new_state.phase === 'ended') {
+          clearInterval(interval);
+          this.runners.delete(gameId);
+          this.actionBuffers.delete(gameId);
+
+          // Fire game-end callbacks (leaderboard, analysis, knowledge base)
+          for (const cb of this.gameEndCallbacks) {
+            try { cb(gameId, result.new_state, result.events); } catch (_e) { /* ignore */ }
           }
-        }, 5 * 60 * 1000);
+
+          // Keep ended game in memory for 5 minutes so spectators can see final state
+          setTimeout(() => {
+            const g = this.games.get(gameId);
+            if (g && g.phase === 'ended') {
+              this.games.delete(gameId);
+              this.tickCallbacks.delete(gameId);
+            }
+          }, 5 * 60 * 1000);
+        }
+      } catch (err) {
+        console.error(`[CF] Tick ${tickNumber} crashed for game ${gameId.slice(0, 8)}:`, err);
+        // Skip this tick but keep the loop alive
       }
     }, tick_interval_ms);
 
