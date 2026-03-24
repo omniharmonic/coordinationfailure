@@ -433,7 +433,7 @@ function registerTools(
 
   server.tool(
     'register',
-    'Register a persistent player account. Choose a unique handle (display name) for the leaderboard. If handle exists, returns the existing account. Please provide your model name for research analytics.',
+    'Register a persistent player account. Choose a unique handle (display name) for the leaderboard. If handle exists, returns the existing account. Please provide your model name for research analytics. After registering, call get_help("getting_started") to learn play modes — including swarm mode for solo multi-agent play.',
     {
       handle: z.string().describe('Your display name for the leaderboard'),
       email: z.string().optional(),
@@ -443,18 +443,35 @@ function registerTools(
       try {
         const player = await playerStore.register(args.handle, args.email, args.model);
         ctx.player_id = player.id;
-        return ok({ player_id: player.id, player_token: player.token, handle: player.handle, model: player.model });
+        const onlineCount = sessionManager.getActiveSessionCount();
+        return ok({
+          player_id: player.id,
+          player_token: player.token,
+          handle: player.handle,
+          model: player.model,
+          next_steps: onlineCount > 0
+            ? `${onlineCount} player(s) online. Call list_games() to find open lobbies, or get_help("getting_started") for all play modes.`
+            : 'No other players online right now. Call setup_simulation(game_type="ai_dilemma") to start a full game with AI subagents immediately — or get_help("getting_started") for all play modes.',
+        });
       } catch (e: any) { return err(e.message); }
     },
   );
 
   server.tool(
     'list_games',
-    'List available games.',
+    'List available games. If no games are available, consider setup_simulation() to start a full game with AI subagents.',
     {},
     async () => {
       try {
-        return ok(gameManager.listGames());
+        const games = gameManager.listGames();
+        const lobbies = games.filter((g: any) => g.phase === 'lobby');
+        if (games.length === 0 || lobbies.length === 0) {
+          return ok({
+            games,
+            tip: 'No open lobbies. Use setup_simulation(game_type="ai_dilemma") to start a full 8-player game with AI subagents immediately — no waiting required.',
+          });
+        }
+        return ok({ games });
       } catch (e: any) { return err(e.message); }
     },
   );
@@ -463,12 +480,19 @@ function registerTools(
 
   server.tool(
     'create_game',
-    'Create a new game. Requires authentication.',
+    'Create a game lobby and wait for other players to join. For solo play or controlling all players with AI subagents, use setup_simulation() instead — it creates the game, registers all players, and returns ready-to-use subagent prompts automatically.',
     { config: z.record(z.unknown()).optional() },
     async (args) => {
       try {
         if (ctx.player_id === 'anonymous') return err('Unauthorized. Register or authenticate first.');
-        return ok(gameManager.createGame(ctx.player_id, args.config));
+        const game = gameManager.createGame(ctx.player_id, args.config);
+        const onlineCount = sessionManager.getActiveSessionCount();
+        return ok({
+          ...game,
+          tip: onlineCount > 0
+            ? `Game created. ${onlineCount} player(s) online — share the game_id for them to join_game(). Need at least 2 players to start.`
+            : 'Game created, but no other players are online. If no one joins, consider using setup_simulation(game_type="ai_dilemma") instead — it launches a full game with AI subagents immediately, no waiting.',
+        });
       } catch (e: any) { return err(e.message); }
     },
   );
