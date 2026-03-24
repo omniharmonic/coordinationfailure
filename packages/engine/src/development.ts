@@ -92,7 +92,7 @@ export function computeAlignmentDelta(
   const config = state.config;
 
   // Alignment grows with safety allocation (diminishing returns at high alignment)
-  const diminishingFactor = 1 - company.alignment_score / 120;
+  const diminishingFactor = 1 - company.alignment_score / 110;
   const safetyGrowth = company.safety_allocation * config.alignment_growth_rate * diminishingFactor * tickDuration;
 
   // Alignment decays proportional to capability growth (faster capability = more risk)
@@ -114,7 +114,7 @@ export function computeAlignmentDelta(
   // Joint research bonus from agreements
   const jointResearchBonus = state.agreements
     .filter(a => a.status === 'active' && a.type === 'joint_research' && a.parties.includes(company.id))
-    .length * 0.3 * tickDuration;
+    .length * 0.2 * diminishingFactor * tickDuration;
 
   // Regulation alignment bonus — governments boosting domestic alignment (also diminishes at high alignment)
   const gov = Object.values(state.governments).find(g => g.country === company.country);

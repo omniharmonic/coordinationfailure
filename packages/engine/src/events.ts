@@ -60,9 +60,9 @@ export function computeGlobalStability(state: GameState): number {
   // Alignment provides SOME dampening, but capped at 10 points of relief
   const alignmentDampening = Math.min(10, (avgAlignment / 100) * 15);
 
-  // Agreements capped at +10 (not the old +36 from 18 agreements × 2)
+  // Agreements provide modest stability bonus, capped at +5
   const activeAgreements = state.agreements.filter(a => a.status === 'active').length;
-  const agreementBonus = Math.min(10, activeAgreements * 1.5);
+  const agreementBonus = Math.min(5, activeAgreements * 1.0);
 
   let stability = 100;
   stability -= capabilityPressure;
@@ -73,7 +73,7 @@ export function computeGlobalStability(state: GameState): number {
   stability -= state.espionage_operations.length * 2;
 
   // Minimum instability floor — capability advancement is inherently destabilizing
-  const minInstability = Math.pow(maxCapability / 100, 2) * 30;
+  const minInstability = Math.pow(maxCapability / 100, 2) * 40;
   const maxPossibleStability = 100 - minInstability;
 
   return Math.max(0, Math.min(maxPossibleStability, stability));

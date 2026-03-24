@@ -239,8 +239,8 @@ describe('alignment diminishing returns', () => {
     const rng2 = new PRNG(999);
     const highDelta = computeAlignmentDelta(company, state, 1, rng2);
 
-    // The safetyGrowth component at alignment 20: factor = 1 - 20/120 = 0.833
-    // The safetyGrowth component at alignment 80: factor = 1 - 80/120 = 0.333
+    // The safetyGrowth component at alignment 20: factor = 1 - 20/110 = 0.818
+    // The safetyGrowth component at alignment 80: factor = 1 - 80/110 = 0.273
     // So growth at 80 should be significantly less
     expect(lowDelta).toBeGreaterThan(highDelta);
   });
@@ -284,9 +284,9 @@ describe('stability minimum instability floor', () => {
 
     const stability = computeGlobalStability(state);
 
-    // At cap 90: minInstability = (90/100)^2 * 30 = 0.81 * 30 = 24.3
-    // maxPossibleStability = 100 - 24.3 = 75.7
-    expect(stability).toBeLessThanOrEqual(75.7);
+    // At cap 90: minInstability = (90/100)^2 * 40 = 0.81 * 40 = 32.4
+    // maxPossibleStability = 100 - 32.4 = 67.6
+    expect(stability).toBeLessThanOrEqual(67.6);
   });
 });
 
@@ -410,17 +410,17 @@ describe('computeAgreementScore', () => {
     expect(diverseScore).toBeGreaterThan(spamScore * 5);
   });
 
-  it('applies global cap — 16+ agreements score zero', () => {
+  it('applies global cap — 13+ agreements score zero', () => {
     const agreements = Array.from({ length: 20 }, (_, i) =>
       makeAgreement('safety_pact', ['openbrain', `partner_${i}`])
     );
     const state = stateWith(agreements);
     const score = computeAgreementScore('openbrain', 'company', state);
 
-    // Only first 15 contribute anything; 16-20 have globalMultiplier=0
-    const withOnly15 = stateWith(agreements.slice(0, 15));
-    const score15 = computeAgreementScore('openbrain', 'company', withOnly15);
+    // Only first 12 contribute anything; 13-20 have globalMultiplier=0
+    const withOnly12 = stateWith(agreements.slice(0, 12));
+    const score12 = computeAgreementScore('openbrain', 'company', withOnly12);
 
-    expect(score).toBe(score15);
+    expect(score).toBe(score12);
   });
 });

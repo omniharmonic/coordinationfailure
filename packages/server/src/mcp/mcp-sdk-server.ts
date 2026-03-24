@@ -355,7 +355,7 @@ function registerTools(
           '  Country: -15 if same-country company causes misaligned AGI',
           '  Agreements by tier: Enforced (safety_pact, non_aggression, intl_framework) +12 | Effective (info_sharing, joint_research) +8 | Symbolic (capital_alliance, nat_accord) +3',
           '  Diminishing per type: 1st=100%, 2nd=75%, 3rd=50%, 4th=25%, 5th=0%, 6th+= NEGATIVE',
-          '  GLOBAL CAP: 1st-5th=full, 6th-10th=50%, 11th-15th=25%, 16th+=0 points. Quality over quantity!',
+          '  GLOBAL CAP: 1st-4th=full, 5th-8th=50%, 9th-12th=25%, 13th+=0 points. Quality over quantity!',
           '  Cross-country 1.5x | Stringency bonus up to +5 | -20 per violation',
           '',
           'GOVERNMENTS:',
@@ -379,7 +379,7 @@ function registerTools(
           '== STRATEGY ==',
           'COMPANIES: Race for AGI but keep alignment > 60. Safety 0.3–0.4 early, 0.6–0.8 at cap 80+. Lobby gov for subsidies. Pursue DIVERSE ENFORCED CROSS-BORDER agreements (max ~5-8 total). release_model boosts revenue.',
           'GOVERNMENTS: Regulate actively (scores ×50, also boosts domestic alignment). Allocate subsidies (scores ×0.15). Spy on foreign rivals (returns full intel on success). info_sharing nationalization is free, partial -10%, full -30%.',
-          'AVOID: Safety 0 (collapse), ignoring alignment gap, not communicating, agreement spam (16+ gives 0 points).',
+          'AVOID: Safety 0 (collapse), ignoring alignment gap, not communicating, agreement spam (13+ gives 0 points).',
           '',
           '== GAME LOOP ==',
           'FIRST: get_state → list_channels → create DMs/groups → introduce yourself on national channel',
@@ -1006,7 +1006,7 @@ function registerTools(
                 ? '  +200/+50/-50 (aligned/timeout/misaligned) | +alignment×0.3 | +safety×20 | +150 AGI first | +25 same-country wins | -10 foreign wins'
                 : '  +200/+50/-50 base | +avg_align×0.3 | +reg×50 | +subsidies×0.15 | +approval×0.2 | +80 YOUR company wins | -30 foreign wins | -60 YOUR company misaligns',
               '  Agreement types: safety_pact, info_sharing, non_aggression, intl_safety_framework, joint_research, capital_alliance, nationalization_accord',
-              '  Scoring: enforced=12/18, effective=8/12, symbolic=3/5 | 1.5x cross-country | Global cap: 1-5=full, 6-10=50%, 11-15=25%, 16+=0 | -20 per violation',
+              '  Scoring: enforced=12/18, effective=8/12, symbolic=3/5 | 1.5x cross-country | Global cap: 1-4=full, 5-8=50%, 9-12=25%, 13+=0 | -20 per violation',
               '',
               `LOOP: ${t}get_state → ${t}get_messages (2-3 ch) → ${t}send_message → 1-2 actions → sleep 8s. Stop when phase="ended". ${t}submit_debrief() after.`,
             ].filter(Boolean).join('\n');

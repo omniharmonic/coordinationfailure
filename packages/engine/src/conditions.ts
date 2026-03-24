@@ -197,9 +197,9 @@ export function computeAgreementScore(
 
     // Global tier multiplier based on total agreement count
     let globalMultiplier: number;
-    if (agreementIndex <= 5) globalMultiplier = 1.0;
-    else if (agreementIndex <= 10) globalMultiplier = 0.5;
-    else if (agreementIndex <= 15) globalMultiplier = 0.25;
+    if (agreementIndex <= 4) globalMultiplier = 1.0;
+    else if (agreementIndex <= 8) globalMultiplier = 0.5;
+    else if (agreementIndex <= 12) globalMultiplier = 0.25;
     else globalMultiplier = 0;
 
     // Term stringency bonus (enforced types only)
