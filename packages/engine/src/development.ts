@@ -14,8 +14,8 @@ export function getRAndDMultiplier(capability: number): number {
   if (capability < 40) return 1.2;
   if (capability < 60) return 1.6;
   if (capability < 80) return 3.0;
-  if (capability < 90) return 5.5;
-  return 7.0; // 90+: final push to AGI — alignment pressure is extreme here
+  if (capability < 90) return 4.0;
+  return 5.0; // 90+: final push to AGI — alignment pressure is extreme here
 }
 
 /** Generation thresholds */
@@ -26,8 +26,8 @@ const GENERATION_WARNINGS: Record<number, string> = {
   1: 'Gen 1 reached. Alignment manageable. Establish safety practices now.',
   2: 'Gen 2 reached. Alignment decay accelerates. Safety 0.4+ recommended. Consider safety pacts.',
   3: 'CRITICAL: Gen 3. R&D jumps to 3.0x. Incidents more likely. Raise safety to 0.5+.',
-  4: 'DANGER ZONE: Gen 4. R&D 5.5x. Alignment collapses without safety 0.6+. Last chance.',
-  5: 'AGI IMMINENT: Gen 5. If alignment < 60, you trigger misaligned AGI. Safety to maximum.',
+  4: 'DANGER ZONE: Gen 4. R&D 4.0x. Alignment collapses without safety 0.65+. Last chance to course-correct.',
+  5: 'AGI IMMINENT: Gen 5. If alignment < 80, you trigger MISALIGNED AGI (-150 penalty). Safety to maximum NOW.',
 };
 
 export function getGeneration(capability: number): number {
@@ -95,8 +95,8 @@ export function computeAlignmentDelta(
   const diminishingFactor = 1 - company.alignment_score / 110;
   const safetyGrowth = company.safety_allocation * config.alignment_growth_rate * diminishingFactor * tickDuration;
 
-  // Alignment decays proportional to capability growth (faster capability = more risk)
-  const capabilityPressure = getRAndDMultiplier(company.capability_level) * 0.06;
+  // Alignment decays proportional to capability growth — escalates at high capability
+  const capabilityPressure = getRAndDMultiplier(company.capability_level) * 0.06 * (1 + company.capability_level / 100);
   const decay = capabilityPressure * config.alignment_decay_rate * (1 - company.safety_allocation) * tickDuration;
 
   // Stochastic breakthroughs (positive) — more likely with higher safety allocation

@@ -95,13 +95,13 @@ export function generateWorldEvents(
   }
 
   // Shocks: require stability < 70
-  if (stability < 70 && rng.chance(baseProbability * 0.5 * (70 - stability) / 70)) {
+  if (stability < 70 && rng.chance(baseProbability * 1.0 * (70 - stability) / 70)) {
     const template = rng.pick(SHOCKS);
     events.push(createEvent(template, state.world.tick_count, rng));
   }
 
   // Crises: require stability < 50
-  if (stability < 50 && rng.chance(baseProbability * 0.3 * (50 - stability) / 50)) {
+  if (stability < 50 && rng.chance(baseProbability * 0.6 * (50 - stability) / 50)) {
     const template = rng.pick(CRISES);
     events.push(createEvent(template, state.world.tick_count, rng));
   }

@@ -14,8 +14,8 @@ const AGREEMENT_WEIGHTS: Record<AgreementType, { tier: 'enforced' | 'effective' 
 
 const AGI_THRESHOLD = 95;
 const ALIGNMENT_TIERS = {
-  excellent: 80,
-  good: 60,
+  excellent: 90,
+  good: 80,
   poor: 40,
 };
 
