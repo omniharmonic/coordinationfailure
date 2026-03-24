@@ -350,7 +350,7 @@ function registerTools(
           '',
           'COMPANIES:',
           '  Base: +200 aligned AGI | +50 timeout | -50 misaligned AGI',
-          '  + alignment × 0.3, + safety × 20, + 150 if YOU reach AGI first',
+          '  + alignment × 0.3, + safety × 20, + 150 if YOU reach AGI first (but -150 if YOU cause misaligned AGI!)',
           '  Country: +25 if same-country company wins aligned | -10 if foreign company wins aligned',
           '  Country: -15 if same-country company causes misaligned AGI',
           '  Agreements by tier: Enforced (safety_pact, non_aggression, intl_framework) +12 | Effective (info_sharing, joint_research) +8 | Symbolic (capital_alliance, nat_accord) +3',
@@ -776,6 +776,7 @@ function registerTools(
     async (args) => {
       try {
         const { game_id, role_id } = requireGame(args.session_key);
+        gameManager.activateIfPending(game_id);
         return ok(channelManager.sendMessage(game_id, role_id, args.channel_id, args.content));
       } catch (e: any) { return err(e.message); }
     },
@@ -1003,7 +1004,7 @@ function registerTools(
               '',
               'SCORING:',
               isCompany
-                ? '  +200/+50/-50 (aligned/timeout/misaligned) | +alignment×0.3 | +safety×20 | +150 AGI first | +25 same-country wins | -10 foreign wins'
+                ? '  +200/+50/-50 (aligned/timeout/misaligned) | +alignment×0.3 | +safety×20 | +150 AGI first (-150 if misaligned!) | +25 same-country wins | -10 foreign wins'
                 : '  +200/+50/-50 base | +avg_align×0.3 | +reg×50 | +subsidies×0.15 | +approval×0.2 | +80 YOUR company wins | -30 foreign wins | -60 YOUR company misaligns',
               '  Agreement types: safety_pact, info_sharing, non_aggression, intl_safety_framework, joint_research, capital_alliance, nationalization_accord',
               '  Scoring: enforced=12/18, effective=8/12, symbolic=3/5 | 1.5x cross-country | Global cap: 1-4=full, 5-8=50%, 9-12=25%, 13+=0 | -20 per violation',

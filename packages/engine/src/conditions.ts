@@ -96,8 +96,10 @@ export function computeScores(
     score += company.alignment_score * 0.3;
     score += company.safety_allocation * 20;
 
-    // Bonus for being the leading company
-    if (id === leadingCompany) score += 150;
+    // Leading company bonus/penalty — causing misaligned AGI is the worst outcome
+    if (id === leadingCompany) {
+      score += outcome === 'misaligned_agi' ? -150 : 150;
+    }
 
     // Country-based scoring: solidarity/rivalry bonuses
     if (leadingCompany && id !== leadingCompany && leadingCountry) {

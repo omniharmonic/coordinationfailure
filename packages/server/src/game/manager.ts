@@ -18,6 +18,7 @@ export class GameManager {
   private actionBuffers = new Map<string, PlayerAction[]>();
   private tickCallbacks = new Map<string, Array<(state: GameState, events: GameEvent[]) => void>>();
   private gameEndCallbacks: Array<(gameId: string, state: GameState, events: GameEvent[]) => void> = [];
+  private pendingStart = new Set<string>(); // games waiting for first agent interaction
   public readonly gameLogger = new GameLogger();
 
   constructor(private sessionManager: SessionManager) {
@@ -189,10 +190,18 @@ export class GameManager {
     this.lobbies.delete(gameId);
     this.actionBuffers.set(gameId, []);
 
-    // Start tick loop
-    this.startTickLoop(gameId);
+    // Defer tick loop until first agent interaction — gives subagents time to spawn
+    this.pendingStart.add(gameId);
 
     return state;
+  }
+
+  /** Trigger the tick loop if the game is waiting for first agent interaction */
+  activateIfPending(gameId: string): void {
+    if (this.pendingStart.has(gameId)) {
+      this.pendingStart.delete(gameId);
+      this.startTickLoop(gameId);
+    }
   }
 
   bufferAction(gameId: string, action: PlayerAction): void {
@@ -200,6 +209,7 @@ export class GameManager {
     if (buffer) {
       buffer.push(action);
     }
+    this.activateIfPending(gameId);
   }
 
   onTick(gameId: string, callback: (state: GameState, events: GameEvent[]) => void): void {
