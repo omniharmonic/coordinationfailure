@@ -57,8 +57,8 @@ export function computeGlobalStability(state: GameState): number {
   // Primary driver: aggressive capability pressure (^1.8 curve × 50)
   const capabilityPressure = Math.pow(maxCapability / 100, 1.8) * 50;
 
-  // Alignment provides SOME dampening, but capped at 15 points of relief
-  const alignmentDampening = Math.min(15, (avgAlignment / 100) * 20);
+  // Alignment provides SOME dampening, but capped at 10 points of relief
+  const alignmentDampening = Math.min(10, (avgAlignment / 100) * 15);
 
   // Agreements capped at +10 (not the old +36 from 18 agreements × 2)
   const activeAgreements = state.agreements.filter(a => a.status === 'active').length;
@@ -72,7 +72,11 @@ export function computeGlobalStability(state: GameState): number {
   stability -= state.world.public_awareness * 0.15;
   stability -= state.espionage_operations.length * 2;
 
-  return Math.max(0, Math.min(100, stability));
+  // Minimum instability floor — capability advancement is inherently destabilizing
+  const minInstability = Math.pow(maxCapability / 100, 2) * 30;
+  const maxPossibleStability = 100 - minInstability;
+
+  return Math.max(0, Math.min(maxPossibleStability, stability));
 }
 
 /** Generate world events based on stability level */

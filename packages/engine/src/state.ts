@@ -145,7 +145,7 @@ export type GameEvent =
   | { type: 'generation_reached'; company_id: string; generation: number; tick: number; description?: string }
   | { type: 'agreement_violated'; agreement_id: string; violator_id: string; tick: number }
   | { type: 'agreement_activated'; agreement_id: string; tick: number }
-  | { type: 'espionage_completed'; operation_id: string; initiator_id: string; target_id: string; success: boolean; detected: boolean; tick: number }
+  | { type: 'espionage_completed'; operation_id: string; initiator_id: string; target_id: string; success: boolean; detected: boolean; tick: number; intel?: { target_id: string; capability_level: number; alignment_score: number; safety_allocation: number; capital_reserves: number; compute_level: number; security_level: number; model_generation: number } }
   | { type: 'world_event'; event: WorldEvent }
   | { type: 'game_ending'; leading_company: string; capability: number; tick: number }
   | { type: 'game_over'; outcome: GameOutcome; scores: Record<string, number>; tick: number }

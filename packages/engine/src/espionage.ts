@@ -51,6 +51,18 @@ export function processEspionage(
         success,
         detected,
         tick: state.world.tick_count,
+        ...(success && target ? {
+          intel: {
+            target_id: updated.target_id,
+            capability_level: target.capability_level,
+            alignment_score: target.alignment_score,
+            safety_allocation: target.safety_allocation,
+            capital_reserves: target.capital_reserves,
+            compute_level: target.compute_level,
+            security_level: target.security_level,
+            model_generation: target.model_generation,
+          },
+        } : {}),
       });
 
       if (detected && target) {

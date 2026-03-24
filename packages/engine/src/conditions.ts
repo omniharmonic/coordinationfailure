@@ -132,7 +132,16 @@ export function computeScores(
     score += avgAlignment * 0.3;
 
     // Regulation contribution
-    score += gov.safety_regulation_level * 30;
+    score += gov.safety_regulation_level * 50;
+
+    // Subsidies contribution
+    let totalSubsidies = 0;
+    if (gov.subsidies_allocated) {
+      for (const amount of gov.subsidies_allocated.values()) {
+        totalSubsidies += amount;
+      }
+    }
+    score += totalSubsidies * 0.15;
 
     // Approval rating
     score += gov.domestic_approval * 0.2;
@@ -172,10 +181,12 @@ export function computeAgreementScore(
   // Count by type for diminishing returns
   const typeCounts: Partial<Record<AgreementType, number>> = {};
   let total = 0;
+  let agreementIndex = 0;
 
   for (const a of honored) {
     const n = (typeCounts[a.type] ?? 0) + 1;
     typeCounts[a.type] = n;
+    agreementIndex++;
 
     const w = AGREEMENT_WEIGHTS[a.type];
     if (!w) continue; // skip unknown agreement types
@@ -183,6 +194,13 @@ export function computeAgreementScore(
 
     // Diminishing returns: 1st=100%, 2nd=75%, 3rd=50%, 4th=25%, 5th=0%, 6th+= negative
     const dimFactor = 1 - 0.25 * (n - 1);
+
+    // Global tier multiplier based on total agreement count
+    let globalMultiplier: number;
+    if (agreementIndex <= 5) globalMultiplier = 1.0;
+    else if (agreementIndex <= 10) globalMultiplier = 0.5;
+    else if (agreementIndex <= 15) globalMultiplier = 0.25;
+    else globalMultiplier = 0;
 
     // Term stringency bonus (enforced types only)
     let stringencyBonus = 0;
@@ -210,7 +228,7 @@ export function computeAgreementScore(
       crossCountry = 1.5;
     }
 
-    total += (base + stringencyBonus) * dimFactor * crossCountry;
+    total += (base + stringencyBonus) * dimFactor * crossCountry * globalMultiplier;
   }
 
   return total;

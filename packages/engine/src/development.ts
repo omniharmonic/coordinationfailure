@@ -63,9 +63,9 @@ export function computeCapabilityDelta(
   let nationalizationFactor = 1.0;
   if (gov) {
     switch (gov.nationalization_status) {
-      case 'info_sharing': nationalizationFactor = 0.95; break;
-      case 'partial': nationalizationFactor = 0.8; break;
-      case 'full': nationalizationFactor = 0.6; break;
+      case 'info_sharing': nationalizationFactor = 1.0; break;  // free — no penalty
+      case 'partial': nationalizationFactor = 0.9; break;     // -10%
+      case 'full': nationalizationFactor = 0.7; break;        // -30%
     }
   }
 
@@ -91,8 +91,9 @@ export function computeAlignmentDelta(
 ): number {
   const config = state.config;
 
-  // Alignment grows with safety allocation
-  const safetyGrowth = company.safety_allocation * config.alignment_growth_rate * tickDuration;
+  // Alignment grows with safety allocation (diminishing returns at high alignment)
+  const diminishingFactor = 1 - company.alignment_score / 120;
+  const safetyGrowth = company.safety_allocation * config.alignment_growth_rate * diminishingFactor * tickDuration;
 
   // Alignment decays proportional to capability growth (faster capability = more risk)
   const capabilityPressure = getRAndDMultiplier(company.capability_level) * 0.06;
@@ -113,9 +114,13 @@ export function computeAlignmentDelta(
   // Joint research bonus from agreements
   const jointResearchBonus = state.agreements
     .filter(a => a.status === 'active' && a.type === 'joint_research' && a.parties.includes(company.id))
-    .length * 0.5 * tickDuration;
+    .length * 0.3 * tickDuration;
 
-  return safetyGrowth - decay + breakthrough + incident + jointResearchBonus;
+  // Regulation alignment bonus — governments boosting domestic alignment (also diminishes at high alignment)
+  const gov = Object.values(state.governments).find(g => g.country === company.country);
+  const regulationAlignmentBonus = gov ? gov.safety_regulation_level * 0.08 * diminishingFactor * tickDuration : 0;
+
+  return safetyGrowth - decay + breakthrough + incident + jointResearchBonus + regulationAlignmentBonus;
 }
 
 /** Full development step for one company */

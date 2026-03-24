@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { createInitialState, tick } from '../src/tick.js';
 import { createDefaultConfig } from '../src/config.js';
 import { computeAgreementScore } from '../src/conditions.js';
+import { computeAlignmentDelta } from '../src/development.js';
+import { computeGlobalStability } from '../src/events.js';
+import { PRNG } from '../src/prng.js';
 import type { Agreement, AgreementType, GameState } from '../src/state.js';
 
 describe('createInitialState', () => {
@@ -218,6 +221,75 @@ describe('tick', () => {
   });
 });
 
+describe('alignment diminishing returns', () => {
+  it('alignment growth is slower at high alignment', () => {
+    const config = createDefaultConfig({ seed: 42 });
+    const state = createInitialState('align-test', config);
+    state.phase = 'running';
+    const rng = new PRNG(999); // deterministic, unlikely to trigger stochastic events
+
+    const company = { ...state.companies.openbrain, safety_allocation: 0.5 };
+
+    // Low alignment: growth should be higher
+    company.alignment_score = 20;
+    const lowDelta = computeAlignmentDelta(company, state, 1, rng);
+
+    // High alignment: growth should be lower due to diminishing returns
+    company.alignment_score = 80;
+    const rng2 = new PRNG(999);
+    const highDelta = computeAlignmentDelta(company, state, 1, rng2);
+
+    // The safetyGrowth component at alignment 20: factor = 1 - 20/120 = 0.833
+    // The safetyGrowth component at alignment 80: factor = 1 - 80/120 = 0.333
+    // So growth at 80 should be significantly less
+    expect(lowDelta).toBeGreaterThan(highDelta);
+  });
+});
+
+describe('regulation alignment bonus', () => {
+  it('government regulation boosts domestic company alignment', () => {
+    const config = createDefaultConfig({ seed: 42 });
+    const state = createInitialState('reg-align-test', config);
+    state.phase = 'running';
+    const rng = new PRNG(999);
+
+    const company = { ...state.companies.openbrain, safety_allocation: 0.3 };
+
+    // No regulation
+    state.governments.us_gov.safety_regulation_level = 0;
+    const noRegDelta = computeAlignmentDelta(company, state, 1, rng);
+
+    // High regulation
+    state.governments.us_gov.safety_regulation_level = 0.8;
+    const rng2 = new PRNG(999);
+    const highRegDelta = computeAlignmentDelta(company, state, 1, rng2);
+
+    // Higher regulation should give a positive alignment boost
+    expect(highRegDelta).toBeGreaterThan(noRegDelta);
+  });
+});
+
+describe('stability minimum instability floor', () => {
+  it('caps stability based on max capability', () => {
+    const config = createDefaultConfig({ seed: 42 });
+    const state = createInitialState('stab-test', config);
+    state.phase = 'running';
+
+    // Set high capability — should force stability below max possible
+    state.companies.openbrain.capability_level = 90;
+    // Give everyone high alignment and many agreements to try to push stability up
+    for (const company of Object.values(state.companies)) {
+      company.alignment_score = 100;
+    }
+
+    const stability = computeGlobalStability(state);
+
+    // At cap 90: minInstability = (90/100)^2 * 30 = 0.81 * 30 = 24.3
+    // maxPossibleStability = 100 - 24.3 = 75.7
+    expect(stability).toBeLessThanOrEqual(75.7);
+  });
+});
+
 describe('computeAgreementScore', () => {
   function makeAgreement(type: AgreementType, parties: string[], terms: Record<string, unknown> = {}): Agreement {
     return {
@@ -267,15 +339,16 @@ describe('computeAgreementScore', () => {
     expect(score).toBeCloseTo(6.75);
   });
 
-  it('goes negative for 5th+ of same type', () => {
+  it('goes negative for 5th+ of same type (attenuated by global cap)', () => {
     const agreements = Array.from({ length: 7 }, (_, i) =>
       makeAgreement('capital_alliance', ['openbrain', `partner_${i}`])
     );
     const state = stateWith(agreements);
     const score = computeAgreementScore('openbrain', 'company', state);
 
-    // 3 * (1.0 + 0.75 + 0.5 + 0.25 + 0 + (-0.25) + (-0.5)) = 3 * 1.75 = 5.25
-    expect(score).toBeCloseTo(5.25);
+    // idx 1-5: globalMult=1.0, idx 6-7: globalMult=0.5
+    // 3*(1.0+0.75+0.5+0.25+0) + 3*((-0.25)+(-0.5))*0.5 = 7.5 + (-1.125) = 6.375
+    expect(score).toBeCloseTo(6.375);
   });
 
   it('applies cross-country multiplier', () => {
@@ -331,9 +404,23 @@ describe('computeAgreementScore', () => {
     ]);
     const diverseScore = computeAgreementScore('openbrain', 'company', diverseState);
 
-    // Spam: 3 * (1.0 + 0.75 + 0.5 + 0.25 + 0 + (-0.25) + (-0.5)) = 3 * 1.75 = 5.25
-    // Diverse: each cross-country (1.5x), safety_pact: (12 + 5*(0.8-0.3)/0.7) * 1.5, etc.
-    expect(spamScore).toBeCloseTo(5.25);
+    // Spam: 7 capital_alliance with global cap = 6.375
+    // Diverse: 3 cross-country enforced types ≈ 63 points
+    expect(spamScore).toBeCloseTo(6.375);
     expect(diverseScore).toBeGreaterThan(spamScore * 5);
+  });
+
+  it('applies global cap — 16+ agreements score zero', () => {
+    const agreements = Array.from({ length: 20 }, (_, i) =>
+      makeAgreement('safety_pact', ['openbrain', `partner_${i}`])
+    );
+    const state = stateWith(agreements);
+    const score = computeAgreementScore('openbrain', 'company', state);
+
+    // Only first 15 contribute anything; 16-20 have globalMultiplier=0
+    const withOnly15 = stateWith(agreements.slice(0, 15));
+    const score15 = computeAgreementScore('openbrain', 'company', withOnly15);
+
+    expect(score).toBe(score15);
   });
 });
