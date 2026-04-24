@@ -6,10 +6,15 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cf/engine": "*",
+    "@coordination-games/engine": "*",
+    "@coordination-failure/game-prisoners-dilemma": "*",
+    "@coordination-failure/game-stag-hunt": "*",
+    "@coordination-failure/game-tragedy-commons": "*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "better-sqlite3": "^12.8.0",
     "cors": "^2.8.5",
@@ -29,6 +34,7 @@
     "@types/uuid": "^10.0.0",
     "@types/ws": "^8.5.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   }
 }

@@ -100,6 +100,85 @@ Running `node scripts/classics-drift.test.mjs` asserts for every classic:
 - two identical scenarios produce byte-identical outcomes
   (determinism guard).
 
+## Server wiring: pluggable classics backends
+
+The MCP surface in `packages/server` now dispatches classics calls through
+a `ClassicsBackend` abstraction with two implementations:
+
+| Backend | Game types | Source |
+|---|---|---|
+| `legacy` | PD, Stag Hunt, Tragedy of the Commons, **Schelling Point** | `legacy-classics-backend.ts` — the original in-memory engine, unchanged |
+| `plugin` | PD, Stag Hunt, Tragedy of the Commons | `plugin-classics-backend.ts` — drives the new CoordinationGame plugins via `GameRoom` |
+
+The top-level `ClassicsManager` routes per game type. Schelling Point
+always falls back to `legacy` because no plugin has been written for it.
+Games keep their backend for their entire lifetime; flipping the env var
+only affects games created after the flip.
+
+### Selecting a backend
+
+```bash
+# default — every game type uses legacy (no behavior change)
+CLASSICS_BACKEND=legacy
+
+# flip everything to the plugin engine (Schelling still legacy)
+CLASSICS_BACKEND=plugin
+
+# per-type: migrate one classic at a time
+CLASSICS_BACKEND='{"prisoners_dilemma":"plugin","stag_hunt":"legacy","tragedy_of_commons":"legacy"}'
+```
+
+The AI Dilemma flows through `GameManager`, not `ClassicsManager`, and is
+untouched by any setting here.
+
+### Semantic differences between backends
+
+The MCP **contract** (tool names, argument shapes, return shapes, phase
+transitions) is preserved across backends. The **payoff math** may differ
+because the plugins were designed for Lucian's framework and use their own
+matrices/growth models:
+
+| Game | Legacy payoffs | Plugin payoffs |
+|---|---|---|
+| Prisoner's Dilemma | R=3, P=1, T=5, S=0 | **Same** (same matrix) |
+| Stag Hunt | stag/stag (4,4), hare/hare (2,2), stag/hare (0,3) | `stagPayoff / N` when all stag, `harePayoff` otherwise |
+| Tragedy of the Commons | `resource + growthRate*r*(1-r/cap) - totalExtraction` (additive) | `afterExtraction * growthRate * (1 - after/cap)` (multiplicative logistic) |
+
+Only Prisoner's Dilemma is payoff-identical today. If exact parity for
+Stag Hunt or Tragedy of the Commons matters later, we can parameterize
+the plugins (e.g. an optional `legacyCompat: true` flag on their configs)
+without touching this abstraction.
+
+### Other semantic notes
+
+- **Late joins**: the plugin backend rejects `joinGame` after `game_start`
+  has fired, because the plugins bind `playerIds` at `createInitialState`.
+  Legacy accepts late joins mid-round. For PD (min=max=2) there is no
+  late-join window, so it's unaffected. For SH and TC, all players must
+  join before the game auto-starts at `min_players`.
+- **Chat**: both backends route `allow_communication=true` messages through
+  a simple out-of-band log, so `classic_send_message`/`classic_get_messages`
+  behave identically regardless of the backend.
+- **Reasoning**: optional chain-of-thought attached to `submitChoice` is
+  preserved by both backends and surfaces on `ClassicRoundResult.reasoning`.
+
+### Files
+
+```
+packages/server/src/game/
+  classics-shared.ts           Shared types + GAME_DEFS used by both backends
+  classics-backend.ts          ClassicsBackend interface (the abstraction)
+  legacy-classics-backend.ts   Renamed original ClassicsManager (no behavior change)
+  plugin-classics-backend.ts   New backend driving GameRoom per game
+  classics-manager.ts          Orchestrator that routes per game type
+
+packages/server/src/__tests__/
+  classics-backends.test.ts    24 parity + routing tests
+
+scripts/
+  smoke-server-classics.ts     End-to-end round-trip in all routing modes
+```
+
 ## What was intentionally left out
 
 - Upstream `@coordination-games/engine` carries a server framework with
@@ -108,9 +187,10 @@ Running `node scripts/classics-drift.test.mjs` asserts for every classic:
   (`GameRoom`, `CoordinationGame`, `OpenQueuePhase`, `registerGame`).
   Wiring into Lucian's `workers-server` can happen once the plugins land.
 
-- The legacy server (`packages/server`) still hosts the MCP interface for
-  the old classics engine. It's untouched. Porting the server endpoints
-  to drive the new plugins is the next step after this branch merges.
+- The legacy server MCP tools and endpoints in `packages/server` now sit
+  behind the backend abstraction. Their public tool names (`list_classics`,
+  `join_classic`, `submit_choice`, etc.) are unchanged; only the runtime
+  that answers them can now be swapped per game type.
 
 - The AI Dilemma is out of scope for this migration and stays on the
   legacy engine for now.
