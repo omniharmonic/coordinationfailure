@@ -4,14 +4,19 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/games/*"
   ],
   "scripts": {
     "dev": "npm run dev --workspace=packages/server",
     "dev:web": "npm run dev --workspace=packages/web",
-    "build": "npm run build --workspaces",
+    "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "test:engine": "npm run test --workspace=packages/engine",
+    "test:classics": "npm run test --workspace=@coordination-failure/game-prisoners-dilemma --workspace=@coordination-failure/game-stag-hunt --workspace=@coordination-failure/game-tragedy-commons",
+    "build:coordination-engine": "npm run build --workspace=@coordination-games/engine",
+    "build:classics-plugins": "npm run build --workspace=@coordination-failure/game-prisoners-dilemma --workspace=@coordination-failure/game-stag-hunt --workspace=@coordination-failure/game-tragedy-commons",
+    "classics:run": "node scripts/run-classics.mjs",
     "lint": "eslint packages/*/src/**/*.ts"
   },
   "devDependencies": {
