@@ -631,7 +631,7 @@ export class PluginClassicsBackend implements ClassicsBackend {
     return out;
   }
 
-  /** Check isOver + fire end callbacks. */
+  /** Check isOver + fire end callbacks for a game that finished naturally. */
   private maybeFinalize(sess: VirtualSession): void {
     if (!sess.room) return;
     if (!sess.room.isOver()) return;
@@ -642,7 +642,11 @@ export class PluginClassicsBackend implements ClassicsBackend {
       sess.endedByDepletion = (sess.room.state as TCState).endedByDepletion;
     }
     sess.room.cancelTimer();
+    this.fireGameEndCallbacks(sess);
+  }
 
+  /** Dispatch end-of-game callbacks with a fresh legacy-shaped snapshot. */
+  private fireGameEndCallbacks(sess: VirtualSession): void {
     const snapshot = this.sessionToLegacyShape(sess);
     for (const cb of this.gameEndCallbacks) {
       try {
@@ -681,7 +685,9 @@ export class PluginClassicsBackend implements ClassicsBackend {
         );
         sess.complete = true;
         sess.room?.cancelTimer();
-        this.maybeFinalize(sess);
+        // Forced cleanup: bypass maybeFinalize (which only fires for plugin-
+        // reported isOver) and emit the end-of-game snapshot directly.
+        this.fireGameEndCallbacks(sess);
       }
     }
   }

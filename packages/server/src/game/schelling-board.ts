@@ -87,12 +87,32 @@ export function generateBoard(width: number, height: number, seed: number): Sche
   const hRoads: number[] = [];
   const vRoads: number[] = [];
 
+  // Pick a row/col from [lo, hi] that's at least `minGap` away from every
+  // value already in `taken`. If no such position exists, fall back to the
+  // loosest non-taken value. Guards against an infinite retry loop when
+  // the caller asks for more non-adjacent lines than the board can
+  // physically fit — e.g., 3 horizontal roads in an 8-tall grid where
+  // the first two can land sparsely enough that no third position
+  // satisfies the `minGap=2` constraint.
+  function pickNonAdjacent(lo: number, hi: number, taken: number[], minGap = 2): number {
+    const free: number[] = [];
+    for (let v = lo; v <= hi; v++) {
+      if (taken.includes(v)) continue;
+      if (taken.every((t) => Math.abs(t - v) >= minGap)) free.push(v);
+    }
+    if (free.length > 0) return free[Math.floor(rng.next() * free.length)];
+    // Relaxed fallback: any value not already taken.
+    const untaken: number[] = [];
+    for (let v = lo; v <= hi; v++) {
+      if (!taken.includes(v)) untaken.push(v);
+    }
+    if (untaken.length > 0) return untaken[Math.floor(rng.next() * untaken.length)];
+    return lo;
+  }
+
   const numH = rng.nextInt(2, 3);
   for (let i = 0; i < numH; i++) {
-    let row: number;
-    do {
-      row = rng.nextInt(1, height - 2);
-    } while (hRoads.includes(row) || hRoads.some(r => Math.abs(r - row) < 2));
+    const row = pickNonAdjacent(1, height - 2, hRoads);
     hRoads.push(row);
     for (let c = 0; c < width; c++) {
       if (cells[row][c] === 'empty') {
@@ -103,10 +123,7 @@ export function generateBoard(width: number, height: number, seed: number): Sche
 
   const numV = rng.nextInt(2, 3);
   for (let i = 0; i < numV; i++) {
-    let col: number;
-    do {
-      col = rng.nextInt(1, width - 2);
-    } while (vRoads.includes(col) || vRoads.some(c => Math.abs(c - col) < 2));
+    const col = pickNonAdjacent(1, width - 2, vRoads);
     vRoads.push(col);
     for (let r = 0; r < height; r++) {
       if (cells[r][col] === 'empty') {

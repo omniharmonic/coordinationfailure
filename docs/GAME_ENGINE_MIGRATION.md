@@ -166,18 +166,73 @@ without touching this abstraction.
 
 ```
 packages/server/src/game/
-  classics-shared.ts           Shared types + GAME_DEFS used by both backends
-  classics-backend.ts          ClassicsBackend interface (the abstraction)
-  legacy-classics-backend.ts   Renamed original ClassicsManager (no behavior change)
-  plugin-classics-backend.ts   New backend driving GameRoom per game
-  classics-manager.ts          Orchestrator that routes per game type
+  classics-shared.ts               Shared types + GAME_DEFS used by both backends
+  classics-backend.ts              ClassicsBackend interface (the abstraction)
+  legacy-classics-backend.ts       Renamed original ClassicsManager (no behavior change)
+  plugin-classics-backend.ts       New backend driving GameRoom per game
+  classics-manager.ts              Orchestrator that routes per game type
+
+packages/server/src/mcp/
+  classics-tool-dispatcher.ts      Pure tool → ClassicsManager method dispatcher
+                                   (single code path for HTTP/MCP SDK/tests)
 
 packages/server/src/__tests__/
-  classics-backends.test.ts    24 parity + routing tests
+  classics-backends.test.ts        24 parity + routing tests
+  e2e/
+    mcp-dispatch.test.ts           28 tests: every classics tool through the
+                                   real dispatcher, against both backends
+    lifecycle.test.ts              17 tests: full game lifecycles via dispatcher
+    strategies.test.ts             12 tests: well-known strategy outcomes
+    errors.test.ts                 30 tests: adversarial/error path coverage
+    shape-parity.test.ts           6 tests: legacy vs plugin return-shape parity
+    concurrency.test.ts            4 tests: multi-game, multi-backend isolation
+    callbacks-cleanup.test.ts      10 tests: callback uniqueness + heartbeat
+    cleanup-timers.test.ts         5 tests: stale-game cleanup under fake timers
+    invariants.test.ts             6 tests × 30 random games each (180 runs):
+                                   property-based invariants on both backends
 
 scripts/
-  smoke-server-classics.ts     End-to-end round-trip in all routing modes
+  smoke-server-classics.ts         End-to-end round-trip in all routing modes
+  e2e-classics-agents.ts           Agent-loop harness: 4 scenarios through
+                                   the MCP dispatcher (legacy, plugin, mixed,
+                                   and 10-way concurrent PD)
 ```
+
+### E2E test verification
+
+Running `npm test --workspace=@cf/server` executes 142 tests across 10 suites
+in under a second, covering:
+
+- **MCP dispatch contract** — every classics tool name resolves to the
+  correct method with the correct argument validation and error messages.
+- **Full lifecycle playability** — every game type × both backends plays
+  from join to complete via the real dispatcher.
+- **Strategy correctness** — tit-for-tat, grim-trigger, always-cooperate,
+  and always-defect produce their expected Axelrod-style outcomes.
+- **Error paths** — 30 enumerated error branches (invalid game_id, invalid
+  choice, out-of-range TC rate, double submit, non-participant action,
+  chat-when-disabled, full-game join, post-complete submit, etc.).
+- **Shape parity** — legacy and plugin backends return structurally
+  equivalent responses from every public method, so agents don't care
+  which one answers.
+- **Concurrency** — 5 mixed-backend games and 10-way parallel PD prove no
+  state leakage between games.
+- **Callbacks + heartbeat** — `onGameComplete` fires exactly once per
+  game, even with throwing callbacks; polling updates `last_activity`.
+- **Cleanup** — fake-timer tests drive the 10/30/60-minute stale cleanup
+  logic on both backends.
+- **Invariants (property-based)** — 30 random games × 3 game types × 2
+  backends = 180 generated scenarios asserting phase monotonicity, score
+  finiteness, resource bounds, history-keys-match-players, and
+  termination-within-rounds-bound.
+
+Plus `scripts/e2e-classics-agents.ts` drives 4 real-agent scenarios (legacy
+everywhere, plugin everywhere, per-type mixed routing, and 10-game
+concurrency) through the same dispatcher the production HTTP handler uses.
+
+Shipping criteria met: every tool, every game type, every backend, every
+documented error path, every lifecycle transition, plus 180 random-game
+invariant scenarios — all green in a single second of wall-clock.
 
 ## What was intentionally left out
 
