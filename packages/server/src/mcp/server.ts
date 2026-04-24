@@ -3,6 +3,7 @@ import { filterStateForRole } from '@cf/engine';
 import type { GameManager } from '../game/manager.js';
 import type { SessionManager } from '../session/manager.js';
 import type { ClassicsManager } from '../game/classics-manager.js';
+import { dispatchClassicsTool } from './classics-tool-dispatcher.js';
 import { playerStore } from '../api/routes.js';
 import { ChannelManager } from '../comms/channels.js';
 import { serializeState } from '../util/serialize.js';
@@ -319,56 +320,17 @@ async function handleToolCall(
       return channelManager.createChannel(auth.game_id, auth.role_id, params.type, params.invite_ids);
     }
 
-    // Classic game tools
-    case 'list_classics': {
-      if (!classicsManager) throw new Error('Classics not enabled');
-      return classicsManager.listClassics();
-    }
-
-    case 'join_classic': {
-      if (!classicsManager) throw new Error('Classics not enabled');
-      const joinPlayerId = await resolvePlayer(params, auth);
-
-      if (params.game_id) {
-        const game = classicsManager.joinClassicGame(params.game_id, joinPlayerId);
-        return { game_id: game.id, type: game.type, phase: game.phase, players: game.player_ids.length };
-      }
-
-      const gameType = params.game_type;
-      if (!gameType) throw new Error('Missing game_type (required when creating a new game)');
-      const game = classicsManager.createClassicGame(gameType, params.config, joinPlayerId);
-      return { game_id: game.id, type: game.type, phase: game.phase, players: game.player_ids.length };
-    }
-
-    case 'get_classic_state': {
-      if (!classicsManager) throw new Error('Classics not enabled');
-      if (!params.game_id) throw new Error('Missing game_id');
-      const statePlayerId = await resolvePlayer(params, auth);
-      return classicsManager.getClassicState(params.game_id, statePlayerId);
-    }
-
-    case 'submit_choice': {
-      if (!classicsManager) throw new Error('Classics not enabled');
-      if (!params.game_id) throw new Error('Missing game_id');
-      if (!params.choice) throw new Error('Missing choice');
-      const choicePlayerId = await resolvePlayer(params, auth);
-      return classicsManager.submitChoice(params.game_id, choicePlayerId, params.choice, params.reasoning);
-    }
-
+    // Classic game tools — all delegate to the shared dispatcher so the
+    // same code path serves HTTP/MCP-SDK/tests.
+    case 'list_classics':
+    case 'join_classic':
+    case 'get_classic_state':
+    case 'submit_choice':
     case 'classic_chat':
-    case 'classic_send_message': {
-      if (!classicsManager) throw new Error('Classics not enabled');
-      if (!params.game_id) throw new Error('Missing game_id');
-      if (!params.content) throw new Error('Missing content');
-      const chatPlayerId = await resolvePlayer(params, auth);
-      return classicsManager.sendMessage(params.game_id, chatPlayerId, params.content);
-    }
-
+    case 'classic_send_message':
     case 'classic_get_messages': {
-      if (!classicsManager) throw new Error('Classics not enabled');
-      if (!params.game_id) throw new Error('Missing game_id');
-      const msgPlayerId = await resolvePlayer(params, auth);
-      return classicsManager.getMessages(params.game_id, msgPlayerId);
+      const resolvedPlayerId = await resolvePlayer(params, auth);
+      return dispatchClassicsTool({ tool, params, playerId: resolvedPlayerId, classicsManager });
     }
 
     case 'setup_simulation': {
