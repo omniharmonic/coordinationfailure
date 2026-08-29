@@ -45,11 +45,15 @@ const ROLE_COLORS: Record<string, string> = {
   china_gov: '#ffaa00',
 };
 
+type InsightSort = 'newest' | 'oldest' | 'role';
+
 export function Knowledge({ onBack }: { onBack: () => void }) {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [agentInsights, setAgentInsights] = useState<AgentInsight[]>([]);
   const [tab, setTab] = useState<Tab>('all');
   const [filterType, setFilterType] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const [insightSort, setInsightSort] = useState<InsightSort>('newest');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -76,6 +80,20 @@ export function Knowledge({ onBack }: { onBack: () => void }) {
   };
 
   const totalGames = new Set(patterns.flatMap(p => p.supporting_games ?? [])).size;
+
+  // Role filtering and sorting for agent insights
+  const uniqueRoles = [...new Set(agentInsights.map(i => i.role_id))];
+  const roleCounts = uniqueRoles.reduce<Record<string, number>>((acc, role) => {
+    acc[role] = agentInsights.filter(i => i.role_id === role).length;
+    return acc;
+  }, {});
+  const filteredInsights = roleFilter ? agentInsights.filter(i => i.role_id === roleFilter) : agentInsights;
+  const sortedInsights = [...filteredInsights].sort((a, b) => {
+    if (insightSort === 'newest') return new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime();
+    if (insightSort === 'oldest') return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+    // sort by role
+    return (a.role_id).localeCompare(b.role_id);
+  });
 
   const tabStyle = (active: boolean) => ({
     background: active ? 'rgba(51, 255, 51, 0.1)' : 'transparent',
@@ -190,7 +208,68 @@ export function Knowledge({ onBack }: { onBack: () => void }) {
                   FIRST-PERSON ANALYSIS FROM GAME PARTICIPANTS
                 </span>
               </div>
-              {agentInsights.map(insight => (
+
+              {/* Role filter buttons */}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <button
+                  onClick={() => setRoleFilter(null)}
+                  style={{
+                    background: !roleFilter ? 'rgba(255, 107, 107, 0.15)' : 'transparent',
+                    color: !roleFilter ? '#ff6b6b' : 'var(--crt-text-dim)',
+                    border: `1px solid ${!roleFilter ? '#ff6b6b' : 'var(--crt-border)'}`,
+                    padding: '4px 12px',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    letterSpacing: '1px',
+                  }}
+                >
+                  ALL ({agentInsights.length})
+                </button>
+                {uniqueRoles.map(role => (
+                  <button
+                    key={role}
+                    onClick={() => setRoleFilter(role)}
+                    style={{
+                      background: roleFilter === role ? `${ROLE_COLORS[role] ?? 'var(--crt-green)'}22` : 'transparent',
+                      color: roleFilter === role ? (ROLE_COLORS[role] ?? 'var(--crt-green)') : 'var(--crt-text-dim)',
+                      border: `1px solid ${roleFilter === role ? (ROLE_COLORS[role] ?? 'var(--crt-green)') : 'var(--crt-border)'}`,
+                      padding: '4px 12px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                    }}
+                  >
+                    {role.replace('_', ' ')} ({roleCounts[role]})
+                  </button>
+                ))}
+
+                {/* Sort controls */}
+                <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'var(--crt-text-dim)', letterSpacing: '1px' }}>SORT:</span>
+                {(['newest', 'oldest', 'role'] as InsightSort[]).map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setInsightSort(s)}
+                    style={{
+                      background: insightSort === s ? 'rgba(255, 107, 107, 0.15)' : 'transparent',
+                      color: insightSort === s ? '#ff6b6b' : 'var(--crt-text-dim)',
+                      border: `1px solid ${insightSort === s ? '#ff6b6b' : 'var(--crt-border)'}`,
+                      padding: '2px 8px',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.65rem',
+                      cursor: 'pointer',
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+
+              {sortedInsights.map(insight => (
                 <div key={insight.id} className="panel" style={{
                   marginBottom: '10px',
                   borderLeft: `3px solid ${ROLE_COLORS[insight.role_id] ?? 'var(--crt-green)'}`,
